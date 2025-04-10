@@ -1,0 +1,69 @@
+2025-03-18 19:59:07,155 - __main__ - INFO - Using Pinecone API key: pcsk_3W2sg...
+2025-03-18 19:59:07,156 - __main__ - INFO - Processing text file: test_document.txt
+2025-03-18 19:59:07,156 - __main__ - INFO - Using index: ragster
+2025-03-18 19:59:07,156 - __main__ - INFO - Using namespace: text_test
+2025-03-18 19:59:07,156 - __main__ - INFO - Loading text file: test_document.txt
+2025-03-18 19:59:07,156 - __main__ - INFO - Text file loaded successfully with 769 characters
+2025-03-18 19:59:07,156 - __main__ - INFO - Detected markdown content, using markdown splitter
+2025-03-18 19:59:07,156 - __main__ - INFO - Created 3 document chunks using markdown splitter
+2025-03-18 19:59:07,156 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 19:59:07,156 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 19:59:07,165 - pinecone_plugin_interface.logging - INFO - Installing plugin inference into Pinecone
+2025-03-18 19:59:07,349 - __main__ - INFO - Available indexes: ['pdf-embeddings', 'multimoney', 'documents', 'ragster', 'bineo']
+2025-03-18 19:59:07,349 - __main__ - INFO - Using existing index: ragster
+2025-03-18 19:59:07,429 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 19:59:07,429 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 19:59:07,740 - __main__ - INFO - Index before upsert - Dimension: 1024, Total vectors: 23
+2025-03-18 19:59:07,741 - __main__ - INFO - Generating embeddings for text chunks...
+2025-03-18 19:59:07,741 - __main__ - INFO - Loading model: intfloat/multilingual-e5-large
+2025-03-18 19:59:08,766 - __main__ - INFO - Using device: cpu
+2025-03-18 19:59:08,767 - __main__ - INFO - Processing batch 1/1 with 3 texts
+2025-03-18 19:59:11,221 - __main__ - INFO - Generated 3 embeddings with dimension: 1024
+2025-03-18 19:59:11,357 - __main__ - INFO - Upserting 3 vectors to Pinecone in batches of 100...
+2025-03-18 19:59:11,357 - __main__ - INFO - Upserting batch 1/1 with 3 vectors
+2025-03-18 19:59:11,712 - __main__ - INFO - Upsert completed!
+2025-03-18 19:59:11,787 - __main__ - INFO - Index after upsert - Dimension: 1024, Total vectors: 23
+2025-03-18 19:59:11,787 - __main__ - INFO - Testing query: '¿Qué requisitos necesito para un crédito?'
+2025-03-18 19:59:11,787 - __main__ - INFO - Loading model: intfloat/multilingual-e5-large
+2025-03-18 19:59:12,699 - __main__ - INFO - Using device: cpu
+2025-03-18 19:59:12,700 - __main__ - INFO - Processing batch 1/2 with 1 texts
+2025-03-18 19:59:12,852 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 19:59:13,074 - __main__ - INFO - Query results:
+2025-03-18 19:59:13,076 - __main__ - INFO - Text file processed and embedded successfully!
+2025-03-18 20:01:20,409 - __main__ - INFO - Using Pinecone API key: pcsk_3W2sg...
+2025-03-18 20:01:20,409 - __main__ - INFO - Processing text file: test_document.txt
+2025-03-18 20:01:20,409 - __main__ - INFO - Using index: ragster
+2025-03-18 20:01:20,409 - __main__ - INFO - Using namespace: multilingual_test
+2025-03-18 20:01:20,409 - __main__ - INFO - Loading text file: test_document.txt
+2025-03-18 20:01:20,409 - __main__ - INFO - Text file loaded successfully with 769 characters
+2025-03-18 20:01:20,409 - __main__ - INFO - Detected markdown content, using markdown splitter
+2025-03-18 20:01:20,409 - __main__ - INFO - Created 3 document chunks using markdown splitter
+2025-03-18 20:01:20,410 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:01:20,410 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:01:20,416 - pinecone_plugin_interface.logging - INFO - Installing plugin inference into Pinecone
+2025-03-18 20:01:22,434 - __main__ - INFO - Available indexes: ['pdf-embeddings', 'multimoney', 'documents', 'ragster', 'bineo']
+2025-03-18 20:01:22,434 - __main__ - INFO - Using existing index: ragster
+2025-03-18 20:01:23,642 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:01:23,642 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:01:23,944 - __main__ - INFO - Index before upsert - Dimension: 1024, Total vectors: 26
+2025-03-18 20:01:23,944 - __main__ - INFO -   Namespace 'text_test': 3 vectors
+2025-03-18 20:01:23,944 - __main__ - INFO -   Namespace '': 23 vectors
+2025-03-18 20:01:23,944 - __main__ - INFO - Generating embeddings for text chunks...
+2025-03-18 20:01:23,944 - __main__ - INFO - Loading model: intfloat/multilingual-e5-large
+2025-03-18 20:01:24,831 - __main__ - INFO - Using device: cpu
+2025-03-18 20:01:24,832 - __main__ - INFO - Processing batch 1/1 with 3 texts
+2025-03-18 20:01:27,045 - __main__ - INFO - Generated 3 embeddings with dimension: 1024
+2025-03-18 20:01:27,185 - __main__ - INFO - Upserting 3 vectors to Pinecone in namespace 'multilingual_test'...
+2025-03-18 20:01:27,185 - __main__ - INFO - Upserting batch 1/1 with 3 vectors
+2025-03-18 20:01:27,587 - __main__ - INFO - Upsert completed!
+2025-03-18 20:01:27,663 - __main__ - INFO - Index after upsert - Dimension: 1024, Total vectors: 26
+2025-03-18 20:01:27,663 - __main__ - INFO -   Namespace 'text_test': 3 vectors
+2025-03-18 20:01:27,663 - __main__ - INFO -   Namespace '': 23 vectors
+2025-03-18 20:01:27,663 - __main__ - INFO - Testing query: '¿Qué requisitos necesito para un crédito?'
+2025-03-18 20:01:27,663 - __main__ - INFO - Loading model: intfloat/multilingual-e5-large
+2025-03-18 20:01:28,346 - __main__ - INFO - Using device: cpu
+2025-03-18 20:01:28,347 - __main__ - INFO - Processing batch 1/2 with 1 texts
+2025-03-18 20:01:28,499 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 20:01:28,636 - __main__ - INFO - Querying namespace 'multilingual_test'...
+2025-03-18 20:01:28,720 - __main__ - INFO - Query results (0 matches):
+2025-03-18 20:01:28,721 - __main__ - INFO - Text file processed and embedded successfully in namespace 'multilingual_test'!

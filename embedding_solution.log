@@ -1,0 +1,235 @@
+2025-03-18 20:08:53,930 - __main__ - INFO - Processing document: test_document.txt
+2025-03-18 20:08:53,930 - __main__ - INFO - Using index: pinnacle_test, namespace: e5_multilingual_sample
+2025-03-18 20:08:53,931 - __main__ - INFO - Document loaded successfully with 769 characters
+2025-03-18 20:08:54,060 - __main__ - INFO - Created 1 document chunks
+2025-03-18 20:08:54,060 - __main__ - INFO - Loading E5 model: intfloat/multilingual-e5-large
+2025-03-18 20:08:54,984 - __main__ - INFO - Using device: cpu
+2025-03-18 20:08:54,985 - __main__ - INFO - Processing batch 1/1 with 1 texts
+2025-03-18 20:08:57,295 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 20:08:57,296 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:08:57,296 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:08:57,304 - pinecone_plugin_interface.logging - INFO - Installing plugin inference into Pinecone
+2025-03-18 20:08:59,862 - __main__ - INFO - Available indexes: ['pdf-embeddings', 'multimoney', 'documents', 'ragster', 'bineo']
+2025-03-18 20:08:59,862 - __main__ - INFO - Creating new index 'pinnacle_test' with dimension 1024
+2025-03-18 20:09:00,168 - __main__ - INFO - Creating index: pinnacle_test, dimension: 1024, metric: cosine
+2025-03-18 20:09:01,072 - __main__ - ERROR - Error processing document: (400)
+Reason: Bad Request
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'vary': 'origin,access-control-request-method,access-control-request-headers', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2024-07', 'X-Cloud-Trace-Context': 'f0f25ea98a8a36c7656589190714bbac', 'Date': 'Wed, 19 Mar 2025 02:09:01 GMT', 'Server': 'Google Frontend', 'Content-Length': '125', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"INVALID_ARGUMENT","message":"Name must consist of lower case alphanumeric characters or '-'"},"status":400}
+
+2025-03-18 20:09:01,075 - __main__ - ERROR - Traceback (most recent call last):
+  File "/Users/carloslara/Desktop/nuevo/final_embedding_solution.py", line 323, in process_document
+    pc_manager.create_index(index_name, dimension)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/final_embedding_solution.py", line 230, in create_index
+    self.pc.create_index(
+    ~~~~~~~~~~~~~~~~~~~~^
+        name=index_name,
+        ^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        spec=ServerlessSpec(cloud='aws', region='us-east-1')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/control/pinecone.py", line 373, in create_index
+    api_instance.create_index(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        create_index_request=CreateIndexRequest(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 821, in __call__
+    return self.callable(self, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/control/api/manage_indexes_api.py", line 273, in __create_index
+    return self.call_with_http_info(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 879, in call_with_http_info
+    return self.api_client.call_api(
+           ~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.settings["endpoint_path"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<16 lines>...
+        collection_formats=params["collection_format"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 431, in call_api
+    return self.__call_api(
+           ~~~~~~~~~~~~~~~^
+        resource_path,
+        ^^^^^^^^^^^^^^
+    ...<14 lines>...
+        _check_type,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 216, in __call_api
+    raise e
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 204, in __call_api
+    response_data = self.request(
+        method,
+    ...<6 lines>...
+        _request_timeout=_request_timeout,
+    )
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 518, in request
+    return self.rest_client.POST(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        url,
+        ^^^^
+    ...<5 lines>...
+        body=body,
+        ^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/rest.py", line 345, in POST
+    return self.request(
+           ~~~~~~~~~~~~^
+        "POST",
+        ^^^^^^^
+    ...<6 lines>...
+        body=body,
+        ^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/rest.py", line 279, in request
+    raise PineconeApiException(http_resp=r)
+pinecone.core.openapi.shared.exceptions.PineconeApiException: (400)
+Reason: Bad Request
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'vary': 'origin,access-control-request-method,access-control-request-headers', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2024-07', 'X-Cloud-Trace-Context': 'f0f25ea98a8a36c7656589190714bbac', 'Date': 'Wed, 19 Mar 2025 02:09:01 GMT', 'Server': 'Google Frontend', 'Content-Length': '125', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"INVALID_ARGUMENT","message":"Name must consist of lower case alphanumeric characters or '-'"},"status":400}
+
+
+2025-03-18 20:09:01,214 - __main__ - ERROR - Failed to process document
+2025-03-18 20:09:40,124 - __main__ - INFO - Processing document: test_document.txt
+2025-03-18 20:09:40,124 - __main__ - INFO - Using index: pinnacle-test, namespace: e5-multilingual-sample
+2025-03-18 20:09:40,124 - __main__ - INFO - Document loaded successfully with 769 characters
+2025-03-18 20:09:40,231 - __main__ - INFO - Created 1 document chunks
+2025-03-18 20:09:40,231 - __main__ - INFO - Loading E5 model: intfloat/multilingual-e5-large
+2025-03-18 20:09:41,174 - __main__ - INFO - Using device: cpu
+2025-03-18 20:09:41,175 - __main__ - INFO - Processing batch 1/1 with 1 texts
+2025-03-18 20:09:42,931 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 20:09:42,936 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:09:42,936 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:09:42,944 - pinecone_plugin_interface.logging - INFO - Installing plugin inference into Pinecone
+2025-03-18 20:09:44,347 - __main__ - INFO - Available indexes: ['pdf-embeddings', 'multimoney', 'documents', 'ragster', 'bineo']
+2025-03-18 20:09:44,347 - __main__ - INFO - Creating new index 'pinnacle-test' with dimension 1024
+2025-03-18 20:09:45,007 - __main__ - INFO - Creating index: pinnacle-test, dimension: 1024, metric: cosine
+2025-03-18 20:09:45,184 - __main__ - ERROR - Error processing document: (403)
+Reason: Forbidden
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'vary': 'origin,access-control-request-method,access-control-request-headers', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2024-07', 'x-cloud-trace-context': 'e75ceb1d13200023e9cd197d784e8920', 'date': 'Wed, 19 Mar 2025 02:09:45 GMT', 'server': 'Google Frontend', 'Content-Length': '196', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"FORBIDDEN","message":"Request failed. You've reached the max serverless indexes allowed in project Default (5). To add more serverless indexes, upgrade your plan."},"status":403}
+
+2025-03-18 20:09:45,188 - __main__ - ERROR - Traceback (most recent call last):
+  File "/Users/carloslara/Desktop/nuevo/final_embedding_solution.py", line 323, in process_document
+    pc_manager.create_index(index_name, dimension)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/final_embedding_solution.py", line 230, in create_index
+    self.pc.create_index(
+    ~~~~~~~~~~~~~~~~~~~~^
+        name=index_name,
+        ^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        spec=ServerlessSpec(cloud='aws', region='us-east-1')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/control/pinecone.py", line 373, in create_index
+    api_instance.create_index(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        create_index_request=CreateIndexRequest(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        )
+        ^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 821, in __call__
+    return self.callable(self, *args, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/control/api/manage_indexes_api.py", line 273, in __create_index
+    return self.call_with_http_info(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 879, in call_with_http_info
+    return self.api_client.call_api(
+           ~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.settings["endpoint_path"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<16 lines>...
+        collection_formats=params["collection_format"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 431, in call_api
+    return self.__call_api(
+           ~~~~~~~~~~~~~~~^
+        resource_path,
+        ^^^^^^^^^^^^^^
+    ...<14 lines>...
+        _check_type,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 216, in __call_api
+    raise e
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 204, in __call_api
+    response_data = self.request(
+        method,
+    ...<6 lines>...
+        _request_timeout=_request_timeout,
+    )
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/api_client.py", line 518, in request
+    return self.rest_client.POST(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        url,
+        ^^^^
+    ...<5 lines>...
+        body=body,
+        ^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/rest.py", line 345, in POST
+    return self.request(
+           ~~~~~~~~~~~~^
+        "POST",
+        ^^^^^^^
+    ...<6 lines>...
+        body=body,
+        ^^^^^^^^^^
+    )
+    ^
+  File "/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone/core/openapi/shared/rest.py", line 271, in request
+    raise ForbiddenException(http_resp=r)
+pinecone.core.openapi.shared.exceptions.ForbiddenException: (403)
+Reason: Forbidden
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'access-control-allow-origin': '*', 'vary': 'origin,access-control-request-method,access-control-request-headers', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2024-07', 'x-cloud-trace-context': 'e75ceb1d13200023e9cd197d784e8920', 'date': 'Wed, 19 Mar 2025 02:09:45 GMT', 'server': 'Google Frontend', 'Content-Length': '196', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"FORBIDDEN","message":"Request failed. You've reached the max serverless indexes allowed in project Default (5). To add more serverless indexes, upgrade your plan."},"status":403}
+
+
+2025-03-18 20:09:45,329 - __main__ - ERROR - Failed to process document
+2025-03-18 20:09:55,367 - __main__ - INFO - Processing document: test_document.txt
+2025-03-18 20:09:55,367 - __main__ - INFO - Using index: ragster, namespace: e5-fixed-sample
+2025-03-18 20:09:55,367 - __main__ - INFO - Document loaded successfully with 769 characters
+2025-03-18 20:09:55,449 - __main__ - INFO - Created 1 document chunks
+2025-03-18 20:09:55,449 - __main__ - INFO - Loading E5 model: intfloat/multilingual-e5-large
+2025-03-18 20:09:56,372 - __main__ - INFO - Using device: cpu
+2025-03-18 20:09:56,373 - __main__ - INFO - Processing batch 1/1 with 1 texts
+2025-03-18 20:09:57,078 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 20:09:57,079 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:09:57,079 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:09:57,087 - pinecone_plugin_interface.logging - INFO - Installing plugin inference into Pinecone
+2025-03-18 20:09:59,001 - __main__ - INFO - Available indexes: ['pdf-embeddings', 'multimoney', 'documents', 'ragster', 'bineo']
+2025-03-18 20:09:59,766 - pinecone_plugin_interface.logging - INFO - Discovering subpackages in _NamespacePath(['/Users/carloslara/Desktop/nuevo/.venv/lib/python3.13/site-packages/pinecone_plugins'])
+2025-03-18 20:09:59,766 - pinecone_plugin_interface.logging - INFO - Looking for plugins in pinecone_plugins.inference
+2025-03-18 20:09:59,766 - __main__ - INFO - Upserting 1 vectors to namespace 'e5-fixed-sample'...
+2025-03-18 20:09:59,766 - __main__ - INFO - Upserting batch 1/1 with 1 vectors
+2025-03-18 20:10:00,203 - __main__ - INFO - Upsert completed!
+2025-03-18 20:10:00,203 - __main__ - INFO - Testing query: '¿Qué servicios ofrece la empresa?'
+2025-03-18 20:10:00,203 - __main__ - INFO - Processing batch 1/1 with 1 texts
+2025-03-18 20:10:00,312 - __main__ - INFO - Generated 1 embeddings with dimension: 1024
+2025-03-18 20:10:00,312 - __main__ - INFO - Querying namespace 'e5-fixed-sample' for top 3 matches...
+2025-03-18 20:10:00,396 - __main__ - INFO - Query returned no matches
+2025-03-18 20:10:00,530 - __main__ - INFO - Document processed and stored successfully!

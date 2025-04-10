@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Desactivamos el modo oscuro */
+/* 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+*/
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Estilos para placeholders - usando !important para forzar el estilo */
+::placeholder {
+  color: #374151 !important; /* gray-700 para mejor contraste */
+  opacity: 1 !important;
+}
+
+/* Variantes específicas para navegadores */
+::-webkit-input-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+::-moz-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+:-ms-input-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+:-moz-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+/* Clase global para inputs */
+input, textarea, select {
+  background-color: #ffffff;
+  color: #1F2937;
+}
+
+/* Clases específicas para placeholders de Tailwind */
+.placeholder-gray-600::placeholder,
+.placeholder-gray-500::placeholder,
+.placeholder-gray-400::placeholder,
+.placeholder-gray-700::placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+/* Estilos específicos para clases de Tailwind en diferentes navegadores */
+.placeholder-gray-600::-webkit-input-placeholder,
+.placeholder-gray-500::-webkit-input-placeholder,
+.placeholder-gray-400::-webkit-input-placeholder,
+.placeholder-gray-700::-webkit-input-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
+
+.placeholder-gray-600::-moz-placeholder,
+.placeholder-gray-500::-moz-placeholder,
+.placeholder-gray-400::-moz-placeholder,
+.placeholder-gray-700::-moz-placeholder {
+  color: #374151 !important;
+  opacity: 1 !important;
+}
