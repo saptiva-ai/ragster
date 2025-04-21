@@ -16,13 +16,13 @@ import AddTextModal from "@/components/AddTextModal";
 import AddUrlModal from "@/components/AddUrlModal";
 
 type Source = {
-  id: string;
-  name: string;
-  type: string;
-  size: string;
+  id?: string;
+  sourceName: string;
+  sourceType: string;
+  sourceSize: string;
   uploadDate: string;
-  chunkCount: number;
-  namespace?: string;
+  chunkIndex: number;
+  sourceNamespace?: string;
   url?: string;
 };
 
@@ -44,7 +44,7 @@ export default function DocumentsPage() {
       setError(null);
 
       try {
-        const response = await fetch("/api/pinecone-sources");
+        const response = await fetch("/api/weaviate");
 
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
@@ -55,7 +55,7 @@ export default function DocumentsPage() {
         if (data.success && data.sources) {
           setSources(data.sources);
         } else {
-          throw new Error(data.error || "Error al cargar las fuentes");
+          setSources([]);
         }
       } catch (error) {
         console.error("Error fetching sources:", error);
@@ -350,24 +350,24 @@ export default function DocumentsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sources.map((source) => (
-                  <tr key={source.id} className="hover:bg-gray-50">
+                  <tr key={1} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
                         <div
                           className={`flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md
                           ${
-                            source.type === "url"
+                            source.sourceType === "url"
                               ? "bg-purple-100 text-purple-600"
-                              : source.type === "text"
+                              : source.sourceType === "sourceType"
                               ? "bg-green-100 text-green-600"
                               : "bg-blue-100 text-blue-600"
                           }`}
                         >
-                          {renderSourceIcon(source.type)}
+                          {renderSourceIcon(source.sourceType)}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                            {source.name}
+                            {source.sourceName}
                           </div>
                           <div className="text-xs text-gray-500">
                             {source.url ? (
@@ -380,7 +380,7 @@ export default function DocumentsPage() {
                                 {new URL(source.url).hostname}
                               </a>
                             ) : (
-                              source.size
+                              source.sourceSize
                             )}
                           </div>
                         </div>
@@ -390,21 +390,21 @@ export default function DocumentsPage() {
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                         ${
-                          source.type === "url"
+                          source.sourceType === "url"
                             ? "bg-purple-100 text-purple-800"
-                            : source.type === "text"
+                            : source.sourceType === "'text/plain'"
                             ? "bg-green-100 text-green-800"
                             : "bg-blue-100 text-blue-800"
                         }`}
                       >
-                        {getFileTypeDisplay(source.type)}
+                        {getFileTypeDisplay(source.sourceType)}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {source.chunkCount || "—"}
+                      {source.chunkIndex || "—"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {source.namespace || "default"}
+                      {source.sourceNamespace || "default"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                       {formatDate(source.uploadDate)}
@@ -412,7 +412,7 @@ export default function DocumentsPage() {
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-center">
                       <button
                         onClick={() =>
-                          handleDeleteSource(source.id, source.name)
+                          handleDeleteSource(source.id ?? "", source.sourceName)
                         }
                         disabled={actionInProgress === source.id}
                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"

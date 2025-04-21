@@ -19,7 +19,7 @@ async function getPineconeIndex() {
     });
 
     // Obtener el índice
-    return pinecone.index(pineconeIndex);
+    return pinecone.index(pineconeIndex).namespace("default");
   } catch (error) {
     console.error("Error al obtener índice Pinecone:", error);
     throw error;

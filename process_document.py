@@ -8,9 +8,6 @@ import time
 import os
 from langchain_community.document_loaders import UnstructuredWordDocumentLoader
 import logging
-from dotenv import load_dotenv
-# Load environment variables from .env file
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +24,7 @@ logger = logging.getLogger(__name__)
 model_name = "intfloat/multilingual-e5-large"
 
 # Initialize Pinecone client
-api_key = os.getenv("PINECONE_API_KEY")
+api_key = "api_KEY_PINECODE"
 logger.info(f"Using Pinecone API key: {api_key[:10]}...")
 
 # Function to create embeddings using E5 model

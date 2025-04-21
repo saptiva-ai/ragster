@@ -32,9 +32,13 @@ export class EmbeddingService {
       return this.e5Model;
     }
 
+    console.log("Checking for existing E5 model instance...");
+
     try {
       // For client-side, we leverage the transformers.js pipeline
       if (typeof window !== "undefined") {
+        console.log("Initializing client-side embedding with E5 model");
+        // Check if the model is already loaded
         // Dynamically import the pipeline to avoid SSR issues
         const {pipeline} = await import("@xenova/transformers");
 
@@ -152,8 +156,11 @@ export class EmbeddingService {
                     }`,
                   );
                 }
+                const responseOpenAI = await response.json();
 
-                const data = await response.json();
+                console.log("OpenAI API response:", responseOpenAI);
+
+                const data = responseOpenAI;
                 embedding = data.data[0].embedding;
               }
               // If using E5 model (or any other model that requires a different API or approach)
@@ -213,6 +220,10 @@ export class EmbeddingService {
               const configuredDimensions = parseInt(
                 process.env.PINECONE_DIMENSIONS || "1024",
               );
+
+              console.log(
+                `Configured dimensions: ${configuredDimensions}, Model returned dimensions: ${embedding.length}`,
+              );
               if (embedding.length !== configuredDimensions) {
                 console.warn(
                   `Embedding dimension mismatch: Model returned ${embedding.length} dimensions, but Pinecone expects ${configuredDimensions}. Adjusting dimensions...`,
@@ -235,6 +246,10 @@ export class EmbeddingService {
                 );
                 return paddedEmbedding.map((val) => val / magnitude);
               }
+
+              console.log(
+                `Generated embedding: ${embedding}, Dimensions: ${embedding.length}`,
+              );
 
               return embedding;
             } catch (error) {
@@ -267,6 +282,11 @@ export class EmbeddingService {
   public async generateEmbedding(text: string): Promise<number[]> {
     try {
       const model = await this.getE5Model();
+      console.log(
+        `Generating embedding for text: "${text}" using model ${JSON.stringify(
+          model,
+        )}`,
+      );
       return await model.embed(text);
     } catch (error) {
       console.error("Error generating embedding:", error);

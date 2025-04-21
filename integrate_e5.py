@@ -6,14 +6,11 @@ import torch
 import numpy as np
 import time
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 print(f"Transformers version: {transformers.__version__}")
 
 # Initialize Pinecone client
-api_key = os.environ.get("PINECONE_API_KEY", "")
+api_key = "api_KEY_PINECODE"
 print(f"Using Pinecone API key: {api_key[:10]}...")
 
 # E5 model for multilingual embeddings

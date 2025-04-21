@@ -11,11 +11,6 @@ import sys
 import torch
 from pinecone import Pinecone
 from transformers import AutoTokenizer, AutoModel
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -124,8 +119,7 @@ def main():
     parser.add_argument("query", help="The query text to search for")
     parser.add_argument("--index_name", default="ragster", help="Pinecone index name")
     parser.add_argument("--namespace", default="e5-fixed-sample", help="Namespace within the index")
-    import os
-    parser.add_argument("--api_key", default=os.getenv("PINECONE_API_KEY", ""), help="Pinecone API key")
+    parser.add_argument("--api_key", default="api_KEY_PINECODE", help="Pinecone API key")
     parser.add_argument("--top_k", type=int, default=5, help="Number of results to return")
     
     args = parser.parse_args()

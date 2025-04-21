@@ -389,7 +389,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Use provided API key or fetch from environment variable
-    api_key = args.api_key or os.environ.get("PINECONE_API_KEY", "")
+    api_key = args.api_key or os.environ.get("PINECONE_API_KEY", "api_KEY_PINECODE")
     
     success = process_document(
         args.document_path, 

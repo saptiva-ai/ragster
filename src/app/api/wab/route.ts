@@ -85,12 +85,6 @@ export async function POST(req: NextRequest) {
         {status: 500},
       );
     }
-
-    return NextResponse.json({
-      success: true,
-      message: "Solicitud POST recibida",
-      data: body,
-    });
   } catch (error) {
     console.error("Error al procesar la solicitud:", error);
     return NextResponse.json(

@@ -1,67 +1,6 @@
 "use client";
 
 import {useState, useRef, useEffect} from "react";
-import {AdjustmentsHorizontalIcon} from "@heroicons/react/24/solid";
-
-// Función para limpiar texto de marcado XML y otros formatos no deseados
-function cleanSourceText(text: string): string {
-  if (!text) return "";
-
-  // Primera pasada: eliminar etiquetas y códigos XML completos
-  let cleaned = text
-    // Eliminar cualquier etiqueta XML/HTML
-    .replace(/<[^>]*>/g, "")
-    // Eliminar atributos específicos de Word
-    .replace(/w:[a-z]+="[^"]*"/g, "")
-    .replace(/xml:space="[^"]*"/g, "")
-    // Eliminar palabras clave y estructuras específicas de Word
-    .replace(/\b(w|xml):[a-z]+\b/g, "")
-    .replace(
-      /tcPr|tcBorders|w:val|dxa|rsidR|rsidDel|rsidP|rsidRDefault|rsidRPr|w14:paraId/g,
-      "",
-    )
-    .replace(
-      /paraId|space|sz|single|top|left|bottom|right|jc|rPr|pPr|color|val/g,
-      "",
-    )
-    // Eliminar secuencias que parecen valores numéricos solos
-    .replace(/\b\d+\.\d+\b(?!\s*[a-zA-Z])/g, "")
-    // Eliminar caracteres de control y no imprimibles
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, "")
-    // Eliminar referencias a "Del" y "R" que podrían ser residuos XML
-    .replace(/\s*Del="[^"]*"\s*/g, " ")
-    .replace(/\s*R="[^"]*"\s*/g, " ");
-
-  // Segunda pasada: eliminar números y códigos dispersos
-  cleaned = cleaned
-    // Eliminar caracteres sueltos como <, >, / que suelen quedar después de limpiar XML
-    .replace(/[<>\/]{1,2}(?!\w)/g, "")
-    // Eliminar números hexadecimales
-    .replace(/\b[0-9A-F]{6,}\b/g, "")
-    // Normalizar espacios
-    .replace(/\s+/g, " ")
-    // Eliminar texto como "Align" que suele ser parte de atributos
-    .replace(/\bAlign\b/g, "")
-    // Eliminar palabras que están cortadas o fragmentadas
-    .replace(/\b\w{1,2}\b(?!\s*\w{1,2}\b)/g, "")
-    .trim();
-
-  // Si después de limpiar queda muy poco texto o solo hay números/símbolos, intentar recuperar algo útil
-  if (cleaned.length < 10 || !/[a-zA-Z]{3,}/.test(cleaned)) {
-    // Extraer cualquier frase que parezca útil
-    const usefulPhrases = text.match(/[A-Z][a-zA-Z\s,]{5,}[.?!]/g);
-    if (usefulPhrases && usefulPhrases.length > 0) {
-      return usefulPhrases.join(" ");
-    }
-
-    // Si el texto limpio es demasiado corto o solo contiene símbolos/números
-    if (cleaned.length < 5 || !/[a-zA-Z]/.test(cleaned)) {
-      return "Contenido no disponible en formato legible";
-    }
-  }
-
-  return cleaned;
-}
 
 type Source = {
   name: string;
@@ -103,12 +42,6 @@ type StoredSettings = {
 export default function PlaygroundChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
-  const [namespace, setNamespace] = useState<string>("");
-  const [showSettings, setShowSettings] = useState(false);
-  const [availableNamespaces, setAvailableNamespaces] = useState<string[]>([
-    "test_docs",
-    "default",
-  ]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -158,23 +91,7 @@ export default function PlaygroundChat() {
       }
     };
 
-    // Intentar cargar namespaces desde el servidor
-    const fetchNamespaces = async () => {
-      try {
-        const response = await fetch("/api/query?listNamespaces=true");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.namespaces && Array.isArray(data.namespaces)) {
-            setAvailableNamespaces(data.namespaces);
-          }
-        }
-      } catch (error) {
-        console.error("Error al cargar namespaces:", error);
-      }
-    };
-
     fetchSettings();
-    fetchNamespaces();
 
     // Escuchar cambios en las configuraciones del modelo
     const handleSettingsChange = (e: CustomEvent) => {
@@ -260,13 +177,12 @@ export default function PlaygroundChat() {
         topK: 5, // Obtener más resultados relevantes
       };
 
+      console.log("Payload para la API:", payload);
+
       // Añadir namespace si está seleccionado
-      if (namespace) {
-        payload.namespace = namespace;
-      }
 
       // Llamada a la API para obtener respuesta del modelo
-      const response = await fetch("/api/query", {
+      const response = await fetch("/api/query-weaviate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -347,7 +263,7 @@ export default function PlaygroundChat() {
     }
   };
 
-  const getProviderLabel = (provider: string): string => {
+  /*const getProviderLabel = (provider: string): string => {
     switch (provider.toLowerCase()) {
       case "saptiva":
         return "Saptiva";
@@ -358,102 +274,18 @@ export default function PlaygroundChat() {
       default:
         return provider;
     }
-  };
+  };*/
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value || "");
   };
 
-  const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  /*const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setNamespace(e.target.value || "");
-  };
+  };*/
 
   return (
     <div className="flex flex-col h-[calc(100vh-13rem)] max-w-5xl mx-auto rounded-lg border border-gray-200 overflow-hidden shadow-lg">
-      {/* Controles */}
-      <div className="bg-white p-3 border-b border-gray-200 flex items-center">
-        <div className="flex-1">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="text-gray-500 hover:text-gray-800 flex items-center space-x-1 text-sm"
-          >
-            <AdjustmentsHorizontalIcon className="h-4 w-4" />
-            <span>
-              {showSettings ? "Ocultar opciones" : "Opciones de búsqueda"}
-            </span>
-          </button>
-        </div>
-        <div className="flex-1 text-right text-xs text-gray-500">
-          {namespace
-            ? `Buscando en: ${namespace}`
-            : "Buscando en todos los documentos"}
-        </div>
-      </div>
-
-      {/* Panel de opciones (expandible) */}
-      {showSettings && (
-        <div className="bg-gray-50 p-3 border-b border-gray-200">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-800 mb-1">
-                Namespace
-              </label>
-              <select
-                value={namespace}
-                onChange={handleNamespaceChange}
-                className="w-full p-2 border border-gray-300 rounded text-sm"
-              >
-                <option value="">Todos los documentos</option>
-                {availableNamespaces.map((ns) => (
-                  <option key={ns} value={ns}>
-                    {ns}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-800 mb-1">
-                Modelo
-              </label>
-              <select
-                value={modelSettings.modelId}
-                onChange={(e) =>
-                  setModelSettings({...modelSettings, modelId: e.target.value})
-                }
-                className="w-full p-2 border border-gray-300 rounded text-sm"
-              >
-                <option value="Qwen">Qwen</option>
-                <option value="Saptiva Turbo">Saptiva Turbo</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-800 mb-1">
-                Temperatura
-              </label>
-              <div className="flex items-center">
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={modelSettings.temperature}
-                  onChange={(e) =>
-                    setModelSettings({
-                      ...modelSettings,
-                      temperature: parseFloat(e.target.value),
-                    })
-                  }
-                  className="w-full"
-                />
-                <span className="ml-2 text-sm">
-                  {modelSettings.temperature}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Historial de mensajes */}
       <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
         {messages.length === 0 ? (
@@ -481,7 +313,6 @@ export default function PlaygroundChat() {
             <p className="text-xs mt-3 text-gray-800">
               Usando modelo:{" "}
               <span className="font-medium">{modelSettings.modelId}</span>{" "}
-              {namespace && `· Namespace: ${namespace}`}
             </p>
           </div>
         ) : (
@@ -532,22 +363,18 @@ export default function PlaygroundChat() {
                     message.modelInfo && (
                       <div className="mt-2 pt-1 border-t border-gray-200">
                         <p className="text-xs text-gray-500 flex justify-between">
-                          <span>
-                            Generado por{" "}
-                            {getProviderLabel(message.modelInfo.provider)}{" "}
-                            {message.modelInfo.id}
-                          </span>
-                          {message.matches && (
+                          <span>Generado por {modelSettings.modelId}</span>
+                          {/*message.matches && (
                             <span>
                               {message.matches.length} coincidencias encontradas
                             </span>
-                          )}
+                          )*/}
                         </p>
                       </div>
                     )}
 
                   {/* Fuentes citadas con mejor presentación */}
-                  {message.sources &&
+                  {/*message.sources &&
                     message.sources.length > 0 &&
                     !message.isTyping && (
                       <div className="mt-3 pt-2 border-t border-gray-200 space-y-2">
@@ -630,7 +457,7 @@ export default function PlaygroundChat() {
                           })}
                         </div>
                       </div>
-                    )}
+                    )*/}
 
                   {!message.isTyping && (
                     <div className="text-xs opacity-70 mt-1 text-right">
@@ -655,9 +482,7 @@ export default function PlaygroundChat() {
             type="text"
             value={input || ""}
             onChange={handleInputChange}
-            placeholder={`Haz una pregunta${
-              namespace ? ` sobre ${namespace}` : ""
-            }...`}
+            placeholder={`Haz una pregunta...`}
             className="w-full p-4 pr-24 border border-gray-300 rounded-lg focus:ring-[#01f6d2] focus:border-[#01f6d2] bg-white text-black placeholder-gray-600"
             disabled={isLoading}
             onKeyDown={(e) => {

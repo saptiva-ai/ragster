@@ -9,9 +9,6 @@ import time
 import os
 import sys
 import numpy as np
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # Add additional paths to find packages if needed
 site_packages = os.path.join(os.path.dirname(sys.executable), '..', 'lib', 'python3.13', 'site-packages')
@@ -213,7 +210,7 @@ try:
     print(f"First few values: {test_embedding[:5]}")
     
     # Initialize Pinecone client
-    api_key = os.environ.get("PINECONE_API_KEY", "")
+    api_key = "api_KEY_PINECODE"
     print(f"\nInitializing Pinecone with API key: {api_key[:10]}...")
     
     pc = Pinecone(api_key=api_key)

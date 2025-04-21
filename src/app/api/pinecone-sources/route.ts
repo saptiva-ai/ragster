@@ -18,6 +18,7 @@ function extractUniqueSourcesFromPinecone(vectors: any[]) {
           uploadDate: metadata.uploadDate || new Date().toISOString(),
           chunkCount: 1,
           fromPinecone: true,
+          sourceNamespace: metadata.namespace || "",
         });
       } else {
         // Incrementar contador de chunks
@@ -52,7 +53,7 @@ export async function GET() {
 
     // Obtener el índice
     try {
-      const index = pinecone.index(pineconeIndex);
+      const index = pinecone.index(pineconeIndex).namespace("default");
 
       // Importar el servicio de embeddings
       const {EmbeddingService} = await import(
@@ -72,12 +73,23 @@ export async function GET() {
         queryText,
       );
 
+      console.log(
+        `Generando embedding para la consulta "${queryText}" con ${dimensions} dimensiones`,
+      );
+      console.log("Embedding generado:", queryEmbedding);
+
       // Hacer una consulta para obtener vectores con sus metadatos
+
       const queryResponse = await index.query({
         vector: queryEmbedding,
         topK: 500, // Usar 500 para obtener más vectores
         includeMetadata: true,
+        includeValues: false,
       });
+      console.log(
+        `Consulta a Pinecone realizada con éxito. Recuperados ${queryResponse.matches?.length} vectores.`,
+      );
+      console.log("Respuesta de Pinecone:", queryResponse);
 
       // Extraer fuentes únicas de los resultados
       const sources = extractUniqueSourcesFromPinecone(

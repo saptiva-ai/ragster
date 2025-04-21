@@ -24,7 +24,8 @@ export class ModelFactory {
   private static instance: ModelFactory | null = null;
 
   // Valores por defecto
-  private static readonly SAPTIVA_API_KEY = `${process.env.MONGODB_URI}`;
+  private static readonly SAPTIVA_API_KEY =
+    "va-ai-N3dKAfdHb_oTkmpsAb3tWKisQ6Uf7egVSY2UstRIXPus8Sb7w8GzdNsgBXPfriUkFQ7mfmYl7P6ZS17MA6vbMOW36NXAGOtnhokbjc3kU2c";
   private static readonly SAPTIVA_API_BASE_URL = "https://api.saptiva.com";
 
   /**

@@ -5,7 +5,7 @@ import numpy as np
 import random
 
 # Initialize Pinecone client
-api_key = `${process.env.PINECONE_API_KEY}`
+api_key = "api_KEY_PINECODE"
 print(f"Using Pinecone API key: {api_key[:10]}...")
 
 pc = Pinecone(api_key=api_key)
