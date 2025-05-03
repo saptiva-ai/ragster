@@ -1,0 +1,37 @@
+#OpenAI API Key
+OPENAI_API_KEY=
+#Pinecone API Key
+PINECONE_API_KEY=
+#Pinecone Environment
+PINECONE_INDEX=
+
+#Anthropic API Key
+ANTHROPIC_API_KEY=
+
+#Saptiva API Key
+SAPTIVA_API_KEY=
+
+#Saptiva API Base URL
+SAPTIVA_API_BASE_URL=https://api.saptiva.com/
+
+#Variables de entorno para la aplicación
+#Base de datos MongoDB
+MONGODB_URI=
+MONGODB_DB=
+
+#Vector Database (Pinecone)
+PINECONE_ENVIRONMENT=
+PINECONE_HOST=
+PINECONE_DIMENSIONS=1536
+PINECONE_MODEL=multilingual-e5-large
+
+
+#META 
+URL_META=https://graph.facebook.com/v19.0
+
+#NEXT
+NEXT_PUBLIC_CHAT_API=http://localhost:3000
+
+
+WEAVIATE_HOST=""
+WEAVIATE_API_KEY=""
