@@ -27,7 +27,7 @@
     "fs": "^0.0.1-security",
     "fs-extra": "^11.3.0",
     "jszip": "^3.10.1",
-    "langchain": "^0.3.21",
+    "langchain": "^0.3.23",
     "mammoth": "^1.9.0",
     "mongodb": "^6.15.0",
     "next": "^15.2.4",

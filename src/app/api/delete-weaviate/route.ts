@@ -1,9 +1,13 @@
 import {NextRequest, NextResponse} from "next/server";
 import weaviate, {WeaviateClient} from "weaviate-client";
+import {connectToDatabase} from "@/lib/mongodb/client";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 
 export async function DELETE(req: NextRequest) {
+  const {db} = await connectToDatabase();
+  const fileColection = db.collection("file");
+
   try {
     const body = await req.json();
     const {name} = body;
@@ -39,6 +43,8 @@ export async function DELETE(req: NextRequest) {
     const delete_collection = await collection.data.deleteMany(
       collection.filter.byProperty("sourceName").equal(name),
     );
+
+    await fileColection.deleteMany({status: 2});
 
     return NextResponse.json(
       {

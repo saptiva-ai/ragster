@@ -69,7 +69,7 @@ export default function SourcesPage() {
         formData.append("file", file);
       });
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/upload-weaviate", {
         method: "POST",
         body: formData,
       });
@@ -207,7 +207,7 @@ export default function SourcesPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/delete-source", {
+      const response = await fetch("/api/delete-weaviate", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",

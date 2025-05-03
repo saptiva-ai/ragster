@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
-
 import weaviate, {WeaviateClient} from "weaviate-client";
+import {connectToDatabase} from "@/lib/mongodb/client";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 
@@ -9,29 +9,24 @@ export async function GET() {
     process.env.WEAVIATE_HOST!,
     {
       authCredentials: new weaviate.ApiKey(weaviateApiKey),
+      headers: {
+        "X-Openai-Api-Key": process.env.OPENAI_API_KEY!,
+      },
     },
   );
+  const {db} = await connectToDatabase();
+  const fileColection = db.collection("file");
   try {
     const coll = await client.collections.listAll();
 
-    if (coll.length === 0) {
+    if (!coll || coll.length === 0) {
       return NextResponse.json({
-        success: false,
-        error: "No se encontraron colecciones",
+        success: true,
         sources: [],
       });
     }
 
-    const collection = await client.collections.get(coll[0].name);
-    console.log("Colección documents:", JSON.stringify(collection, null, 2));
-
-    if (!collection) {
-      return NextResponse.json({
-        success: false,
-        error: "No se encontró la colección",
-        sources: [],
-      });
-    }
+    const collection = client.collections.get(coll[0].name);
 
     const response = await collection.query.bm25(
       "Lista de todas las fuentes disponibles",
@@ -40,16 +35,24 @@ export async function GET() {
       },
     );
 
-    console.log("Respuesta de Weaviate:", response.objects);
-    const data = [response.objects[0].properties];
+    if (!response || !response.objects || response.objects.length === 0) {
+      return NextResponse.json({
+        success: true,
+        sources: [],
+      });
+    }
 
+    const data = [response.objects[0].properties];
     data[0].id = response.objects[0].uuid;
 
-    console.log("Fuentes:", data);
+    const file = await fileColection.findOne({
+      status: 2,
+    });
 
     return NextResponse.json({
       success: true,
       sources: data,
+      file: file ? data[0].id : null,
     });
   } catch (error) {
     console.error("Error al consultar Pinecone:", error);

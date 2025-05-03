@@ -18,8 +18,6 @@ export async function sendMessageToWABA(params: any): Promise<any> {
 
     const body = await messageType(data);
 
-    console.log("Cuerpo del mensaje:", body);
-
     if (body.error) {
       return body;
     }

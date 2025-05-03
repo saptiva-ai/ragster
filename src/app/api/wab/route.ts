@@ -9,6 +9,8 @@ export async function POST(req: NextRequest) {
     const {from, text, type} = body;
     console.log("Recibida solicitud POST:", body);
 
+    const query = text.body;
+
     try {
       const {db} = await connectToDatabase();
       const settingsCollection = db.collection("settings");
@@ -23,15 +25,27 @@ export async function POST(req: NextRequest) {
         key: "modelSettings",
       });
 
+      if (query.toLowerCase() === "reset") {
+        const {db} = await connectToDatabase();
+        const collection = db.collection("messages");
+        await collection.deleteMany({message_id: from});
+
+        return NextResponse.json({
+          success: true,
+          response: "Conversación reiniciada",
+        });
+      }
+
       let responseBot = await fetch(
-        `${process.env.NEXT_PUBLIC_CHAT_API}/api/query`,
+        `${process.env.NEXT_PUBLIC_CHAT_API}/api/query-weaviate`,
         {
           headers: {
             "Content-Type": "application/json",
           },
           method: "POST",
           body: JSON.stringify({
-            query: text.body,
+            message_id: from,
+            query,
             modelId: modelSettings?.data?.modelId ?? "",
             temperature: modelSettings?.data?.temperature ?? 0.7,
             systemPrompt:

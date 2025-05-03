@@ -9,7 +9,6 @@ import {
   GlobeAltIcon,
   PencilIcon,
 } from "@heroicons/react/24/outline";
-import {PlusCircleIcon} from "@heroicons/react/24/solid";
 import Link from "next/link";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
 import AddTextModal from "@/components/AddTextModal";
@@ -33,7 +32,7 @@ export default function DocumentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
 
@@ -54,8 +53,17 @@ export default function DocumentsPage() {
 
         if (data.success && data.sources) {
           setSources(data.sources);
+
+          console.log("Fuentes:", data.file);
+
+          if (data.file === null) {
+            setActionInProgress(true);
+            return;
+          }
+
+          setActionInProgress(false);
         } else {
-          setSources([]);
+          throw new Error(data.error || "Error al cargar las fuentes");
         }
       } catch (error) {
         console.error("Error fetching sources:", error);
@@ -79,15 +87,15 @@ export default function DocumentsPage() {
       return;
     }
 
-    setActionInProgress(id);
+    setActionInProgress(true);
 
     try {
-      const response = await fetch("/api/delete-source", {
+      const response = await fetch("/api/delete-weaviate", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({id}),
+        body: JSON.stringify({name}),
       });
 
       if (!response.ok) {
@@ -105,7 +113,7 @@ export default function DocumentsPage() {
         }`,
       );
     } finally {
-      setActionInProgress(null);
+      setActionInProgress(false);
     }
   };
 
@@ -128,9 +136,7 @@ export default function DocumentsPage() {
 
   // Función para mostrar el tipo de archivo con un icono
   const getFileTypeDisplay = (type: string) => {
-    if (type.includes("pdf")) {
-      return "PDF";
-    } else if (type.includes("docx") || type.includes("word")) {
+    if (type.includes("docx") || type.includes("word")) {
       return "DOCX";
     } else if (type.includes("text")) {
       return "TXT";
@@ -166,14 +172,6 @@ export default function DocumentsPage() {
   // Botón para seleccionar el tipo de fuente a añadir
   const AddSourceButton = () => (
     <div className="relative">
-      <button
-        onClick={() => setShowOptions(!showOptions)}
-        className="flex items-center px-4 py-2 bg-white text-[#01f6d2] rounded-lg hover:bg-gray-100 border border-[#01f6d2]"
-      >
-        <PlusCircleIcon className="w-5 h-5 mr-1" />
-        <span>Añadir fuente</span>
-      </button>
-
       {showOptions && (
         <div
           className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
@@ -414,11 +412,11 @@ export default function DocumentsPage() {
                         onClick={() =>
                           handleDeleteSource(source.id ?? "", source.sourceName)
                         }
-                        disabled={actionInProgress === source.id}
+                        disabled={actionInProgress}
                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
                         title="Eliminar fuente"
                       >
-                        {actionInProgress === source.id ? (
+                        {actionInProgress ? (
                           <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                           <TrashIcon className="h-5 w-5" />

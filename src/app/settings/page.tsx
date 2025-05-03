@@ -234,127 +234,6 @@ export default function SettingsPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Configuración del API 
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-[#01f6d2]">Configuración del API</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="pineconeApiKey" className="block text-sm font-medium text-black">
-                  Pinecone API Key
-                </label>
-                <input
-                  type="password"
-                  id="pineconeApiKey"
-                  name="pineconeApiKey"
-                  value={apiSettings.pineconeApiKey}
-                  onChange={handleApiChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm placeholder-gray-600"
-                  placeholder="sk-..."
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pinecone Index
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeIndex"
-                    value={apiSettings.pineconeIndex}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="ragster"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pinecone Environment
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeEnvironment"
-                    value={apiSettings.pineconeEnvironment}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="us-east-1"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pinecone Host
-                </label>
-                <input
-                  type="text"
-                  name="pineconeHost"
-                  value={apiSettings.pineconeHost}
-                  onChange={handleApiChange}
-                  className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                  placeholder="https://ragster-xxxx.svc.example.pinecone.io"
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Embedding Model
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeModel"
-                    value={apiSettings.pineconeModel}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="multilingual-e5-large"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Model Dimensions
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeModelDimensions"
-                    value={apiSettings.pineconeModelDimensions}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
-                    placeholder="1024"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Saptiva API Key
-                </label>
-                <input
-                  type="password"
-                  name="saptivaApiKey"
-                  value={apiSettings.saptivaApiKey}
-                  onChange={handleApiChange}
-                  className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
-                  placeholder="va-ai-..."
-                />
-              </div>
-              
-              <button
-                onClick={handleSaveApiSettings}
-                disabled={isLoading}
-                className={`px-4 py-2 rounded-md ${
-                  isLoading
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-[#01f6d2] hover:bg-teal-500 text-black'
-                }`}
-              >
-                {isLoading ? 'Guardando...' : 'Guardar configuración API'}
-              </button>
-            </div>
-          </div>*/}
         <div className="col-span-3 md:col-span-2">
           {/* Configuración de WhatsApp Business */}
           <div className="bg-white p-6 rounded-lg shadow-md">
@@ -470,6 +349,7 @@ export default function SettingsPage() {
                 >
                   <option value="Qwen">Qwen</option>
                   <option value="Saptiva Turbo">Saptiva Turbo</option>
+                  <option value="LLaMa3.3 70B">LLaMa3.3 70B</option>
                 </select>
               </div>
 

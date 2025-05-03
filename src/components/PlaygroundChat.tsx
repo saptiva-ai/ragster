@@ -1,6 +1,7 @@
 "use client";
 
 import {useState, useRef, useEffect} from "react";
+import {v4 as uuidv4} from "uuid";
 
 type Source = {
   name: string;
@@ -45,6 +46,11 @@ export default function PlaygroundChat() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [token, setToken] = useState("");
+
+  if (token === "") {
+    setToken(uuidv4());
+  }
 
   // Obtener configuraciones del modelo
   const [modelSettings, setModelSettings] = useState<StoredSettings>({
@@ -170,6 +176,7 @@ export default function PlaygroundChat() {
       // Preparar el payload para la API
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
+        message_id: token,
         query: input,
         modelId: modelSettings.modelId,
         temperature: modelSettings.temperature,
@@ -263,26 +270,9 @@ export default function PlaygroundChat() {
     }
   };
 
-  /*const getProviderLabel = (provider: string): string => {
-    switch (provider.toLowerCase()) {
-      case "saptiva":
-        return "Saptiva";
-      case "openai":
-        return "OpenAI";
-      case "anthropic":
-        return "Anthropic";
-      default:
-        return provider;
-    }
-  };*/
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value || "");
   };
-
-  /*const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setNamespace(e.target.value || "");
-  };*/
 
   return (
     <div className="flex flex-col h-[calc(100vh-13rem)] max-w-5xl mx-auto rounded-lg border border-gray-200 overflow-hidden shadow-lg">
@@ -364,100 +354,9 @@ export default function PlaygroundChat() {
                       <div className="mt-2 pt-1 border-t border-gray-200">
                         <p className="text-xs text-gray-500 flex justify-between">
                           <span>Generado por {modelSettings.modelId}</span>
-                          {/*message.matches && (
-                            <span>
-                              {message.matches.length} coincidencias encontradas
-                            </span>
-                          )*/}
                         </p>
                       </div>
                     )}
-
-                  {/* Fuentes citadas con mejor presentación */}
-                  {/*message.sources &&
-                    message.sources.length > 0 &&
-                    !message.isTyping && (
-                      <div className="mt-3 pt-2 border-t border-gray-200 space-y-2">
-                        <p className="text-xs font-semibold text-black">
-                          Fuentes:
-                        </p>
-                        <div className="max-h-60 overflow-y-auto pr-1">
-                          {message.sources.map((source, i) => {
-                            const cleanedExcerpt = cleanSourceText(
-                              source.excerpt,
-                            );
-                            const hasUsefulContent =
-                              cleanedExcerpt !==
-                              "Contenido no disponible en formato legible";
-
-                            // Calcular el porcentaje de relevancia para la barra de progreso
-                            const relevancePercent = source.relevanceScore
-                              ? Math.round(source.relevanceScore * 100)
-                              : 0;
-
-                            return (
-                              <div
-                                key={i}
-                                className="text-xs bg-gray-100 p-3 rounded mb-2 border-l-4 border-teal-400"
-                              >
-                                <div className="flex justify-between items-start mb-1">
-                                  <p className="font-medium text-black">
-                                    {source.name}
-                                  </p>
-                                  {source.fileType && (
-                                    <span className="bg-gray-200 px-2 py-0.5 rounded text-xs text-gray-700">
-                                      {source.fileType}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {hasUsefulContent ? (
-                                  <div className="mt-1 text-black bg-white p-2 rounded border border-gray-200 max-h-32 overflow-y-auto">
-                                    {cleanedExcerpt}
-                                  </div>
-                                ) : (
-                                  <p className="text-gray-600 italic mt-1 bg-white p-2 rounded border border-gray-200">
-                                    Este fragmento del documento contiene
-                                    formato no legible. Consulta el documento
-                                    original para ver esta sección.
-                                  </p>
-                                )}
-
-                                {source.relevanceScore !== undefined && (
-                                  <div className="mt-2">
-                                    <div className="flex items-center">
-                                      <span className="text-xs text-gray-700 mr-2">
-                                        Relevancia:
-                                      </span>
-                                      <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                                        <div
-                                          className="bg-teal-500 h-1.5 rounded-full"
-                                          style={{
-                                            width: `${relevancePercent}%`,
-                                          }}
-                                        ></div>
-                                      </div>
-                                      <span className="ml-2 text-xs font-medium text-gray-700">
-                                        {relevancePercent}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {source.uploadDate && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Subido:{" "}
-                                    {new Date(
-                                      source.uploadDate,
-                                    ).toLocaleString()}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )*/}
 
                   {!message.isTyping && (
                     <div className="text-xs opacity-70 mt-1 text-right">

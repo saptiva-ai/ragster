@@ -20,41 +20,13 @@ export default function AddUrlModal({
 }: AddUrlModalProps) {
   const [url, setUrl] = useState("");
   const [urlName, setUrlName] = useState("");
-  const [namespace, setNamespace] = useState<string>("default");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
     success: boolean;
     message: string;
   } | null>(null);
-  const [availableNamespaces, setAvailableNamespaces] = useState<string[]>([
-    "default",
-    "test_docs",
-  ]);
-  const [newNamespace, setNewNamespace] = useState("");
-  const [showNamespaceInput, setShowNamespaceInput] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
-
-  // Cargar namespaces disponibles
-  useEffect(() => {
-    const fetchNamespaces = async () => {
-      try {
-        const response = await fetch("/api/query?listNamespaces=true");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.namespaces && Array.isArray(data.namespaces)) {
-            setAvailableNamespaces(data.namespaces);
-          }
-        }
-      } catch (error) {
-        console.error("Error al cargar namespaces:", error);
-      }
-    };
-
-    if (isOpen) {
-      fetchNamespaces();
-    }
-  }, [isOpen]);
 
   // Resetear estado al cerrar
   useEffect(() => {
@@ -125,16 +97,6 @@ export default function AddUrlModal({
     }
   };
 
-  // Añadir namespace nuevo
-  const handleAddNewNamespace = () => {
-    if (newNamespace && !availableNamespaces.includes(newNamespace)) {
-      setAvailableNamespaces([...availableNamespaces, newNamespace]);
-      setNamespace(newNamespace);
-      setNewNamespace("");
-      setShowNamespaceInput(false);
-    }
-  };
-
   // Validar URL
   const isValidUrl = (urlString: string): boolean => {
     try {
@@ -155,14 +117,6 @@ export default function AddUrlModal({
     setUrlName(e.target.value || "");
   };
 
-  const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setNamespace(e.target.value || "default");
-  };
-
-  const handleNewNamespaceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewNamespace(e.target.value || "");
-  };
-
   // Enviar URL
   const handleSubmit = async () => {
     if (!url || !urlName || !isValidUrl(url)) {
@@ -181,7 +135,7 @@ export default function AddUrlModal({
       const urlData = JSON.stringify({
         url: url,
         name: urlName,
-        namespace: namespace,
+        namespace: "default",
       });
 
       // Enviar solicitud
@@ -333,57 +287,6 @@ export default function AddUrlModal({
                 />
                 <p className="mt-1 text-xs text-black">
                   Un nombre descriptivo para identificar esta fuente
-                </p>
-              </div>
-
-              {/* Selección de namespace */}
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-black mb-1">
-                  Namespace de la URL
-                </label>
-                {showNamespaceInput ? (
-                  <div className="flex">
-                    <input
-                      type="text"
-                      value={newNamespace || ""}
-                      onChange={handleNewNamespaceChange}
-                      className="flex-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm placeholder-gray-600"
-                      placeholder="Ingresa un nuevo namespace"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddNewNamespace}
-                      className="ml-2 px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-black bg-[#01f6d2] hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01f6d2]"
-                    >
-                      Añadir
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex">
-                    <select
-                      value={namespace || "default"}
-                      onChange={handleNamespaceChange}
-                      className="flex-1 block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm"
-                      disabled={isSubmitting}
-                    >
-                      {availableNamespaces.map((ns) => (
-                        <option key={ns} value={ns}>
-                          {ns}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setShowNamespaceInput(true)}
-                      className="ml-2 px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-[#01f6d2] bg-white hover:bg-gray-100 border border-[#01f6d2] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01f6d2]"
-                    >
-                      + Nuevo
-                    </button>
-                  </div>
-                )}
-                <p className="mt-1 text-xs text-black">
-                  El namespace ayuda a organizar tus fuentes en colecciones
-                  separadas.
                 </p>
               </div>
             </>
