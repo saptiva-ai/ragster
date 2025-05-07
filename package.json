@@ -30,6 +30,7 @@
     "langchain": "^0.3.23",
     "mammoth": "^1.9.0",
     "mongodb": "^6.15.0",
+    "net": "^1.0.2",
     "next": "^15.2.4",
     "next-auth": "^4.24.11",
     "pdf-parse": "^1.1.1",
@@ -37,9 +38,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
+    "tls": "^0.0.1",
     "uuid": "^11.1.0",
-    "weaviate-client": "^3.5.2",
-    "weaviate-ts-client": "^2.2.0"
+    "weaviate-client": "^3.5.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -49,6 +50,7 @@
     "@types/pdfjs-dist": "^2.10.377",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/webpack": "^5.28.5",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "tailwindcss": "^4",
