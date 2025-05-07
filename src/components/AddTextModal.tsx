@@ -243,6 +243,57 @@ export default function AddTextModal({
                   </div>
                 </div>
               </div>
+
+              {/* Selección de namespace 
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-black mb-1">
+                  Namespace del texto
+                </label>
+                {showNamespaceInput ? (
+                  <div className="flex">
+                    <input
+                      type="text"
+                      value={newNamespace || ""}
+                      onChange={handleNewNamespaceChange}
+                      className="flex-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm placeholder-gray-600"
+                      placeholder="Ingresa un nuevo namespace"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewNamespace}
+                      className="ml-2 px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-black bg-[#01f6d2] hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01f6d2]"
+                    >
+                      Añadir
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex">
+                    <select
+                      value={namespace || "default"}
+                      onChange={handleNamespaceChange}
+                      className="flex-1 block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm"
+                      disabled={isSubmitting}
+                    >
+                      {availableNamespaces.map((ns) => (
+                        <option key={ns} value={ns}>
+                          {ns}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowNamespaceInput(true)}
+                      className="ml-2 px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-[#01f6d2] bg-white hover:bg-gray-100 border border-[#01f6d2] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01f6d2]"
+                    >
+                      + Nuevo
+                    </button>
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-black">
+                  El namespace ayuda a organizar tus documentos en colecciones
+                  separadas.
+                </p>
+              </div>*/}
             </>
           )}
         </div>

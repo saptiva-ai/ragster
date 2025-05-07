@@ -1,81 +1,143 @@
-# Pinecone Embedding Solution with Multilingual E5 Model
+# ragster - Document Processing and Vector Search Platform
 
-This repository contains a solution for embedding documents in multiple languages using the `multilingual-e5-large` model and storing them in Pinecone vector database.
+A modern web application built with Next.js for processing documents, generating embeddings, and performing semantic search using vector databases.
 
-## Problem Solved
+## Features
 
-The original code was facing a `PineconeBadRequestError` when attempting to generate embeddings for document chunks. This was because:
+- 📄 **Multi-format Document Support**
 
-1. The code was trying to use a different embedding model than the one the Pinecone index was configured for
-2. There were dimension mismatches between the embeddings and the index
-3. There were issues with the proper initialization and usage of the embedding model
+  - Process TXT, PDF, DOCX, and other document formats
+  - Automatic text extraction and chunking
+  - Support for large documents with efficient processing
 
-## Solution
+- 🔍 **Advanced Search Capabilities**
 
-Our solution uses the following components:
+  - Semantic search using vector embeddings
+  - Integration with Pinecone vector database
+  - Multilingual support with E5 model
 
-1. **E5 Multilingual Model**: Uses the `intfloat/multilingual-e5-large` model directly through Hugging Face Transformers
-2. **Batched Processing**: Processes documents in batches to avoid out-of-memory errors
-3. **Proper Text Formatting**: Formats input texts with the "passage:" prefix as required by E5 models
-4. **Vector Normalization**: Properly normalizes embeddings before storing them in Pinecone
-5. **Error Handling**: Includes comprehensive error handling and fallbacks
+- 🛠️ **Modern Tech Stack**
+  - Next.js 15 with TypeScript
+  - React 19
+  - TailwindCSS for styling
+  - MongoDB for data storage
+  - LangChain for document processing
 
-## Key Files
+## Vector Database Management
 
-- `final_embedding_solution.py`: Complete solution for processing documents and storing embeddings
-- `custom_query.py`: Tool for querying vectors stored in Pinecone
-- `process_text.py`: Simplified script for processing text files
-- `process_document.py`: Script for processing Word documents
+### Weaviate Integration
 
-## Usage
+- **Embedding Storage**
 
-### Processing a Document
+  - Store and manage document embeddings in Weaviate
+  - Automatic schema generation for different document types
+  - Efficient vector search and retrieval
 
-```bash
-python final_embedding_solution.py <document_path> --index_name <index> --namespace <namespace>
+- **Embedding Management**
+
+  - View and modify existing embeddings
+  - Batch update capabilities
+  - Embedding version control
+  - Real-time embedding updates
+
+- **Search and Query**
+  - Semantic search across all stored embeddings
+  - Hybrid search combining vector and keyword search
+  - Customizable similarity metrics
+  - Filter and sort capabilities
+
+### Environment Setup
+
+Add the following to your `.env.local`:
+
+```env
+WEAVIATE_URL=your_weaviate_url
+WEAVIATE_API_KEY=your_weaviate_api_key
 ```
 
-### Querying Vectors
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB
+- Pinecone account and API key
+
+### Installation
+
+1. Clone the repository:
 
 ```bash
-python custom_query.py "Your query text" --index_name <index> --namespace <namespace>
+git clone https://github.com/saptiva-ai/ragster.git
+cd ragster
 ```
 
-## Requirements
+2. Install dependencies:
 
-- Python 3.8+
-- transformers
-- torch
-- pinecone-client
-- langchain-text-splitters (optional)
-- langchain-community (optional)
-- unstructured (for docx files)
-- pypdf (for pdf files)
+```bash
+npm install
+```
 
-## Implementation Details
+3. Create a `.env.local` file with your environment variables:
 
-### Embedding Process
+```env
+MONGODB_URI=your_mongodb_uri
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENVIRONMENT=your_pinecone_environment
+```
 
-1. Load document from file (supports txt, md, docx, pdf)
-2. Split document into manageable chunks
-3. Initialize the E5 model (`intfloat/multilingual-e5-large`)
-4. Format text inputs with "passage:" prefix
-5. Generate embeddings in batches
-6. Normalize embeddings to unit length
-7. Store embeddings in Pinecone with metadata
+4. Run the development server:
 
-### Query Process
+```bash
+npm run dev
+```
 
-1. Convert query to embedding using the same model and process
-2. Query Pinecone index with the embedding
-3. Return and display matching results with scores
+The application will be available at `http://localhost:3000`
 
-## Tips for Avoiding Errors
+## Project Structure
 
-1. Make sure your Pinecone index dimension matches your embedding model (1024 for multilingual-e5-large)
-2. Use batching for large documents to avoid memory issues
-3. Always normalize embeddings before storing or querying
-4. Use unique IDs for document chunks
-5. Store appropriate metadata with vectors for context
-6. Use namespaces to organize and isolate different document sets
-7. Handle model loading errors with appropriate fallbacks
+```
+ragster/
+├── src/              # Source code
+├── public/           # Static files
+├── Test/            # Test files
+└── package.json     # Project dependencies
+```
+
+## Available Scripts
+
+- `npm run dev` - Start development server with Turbopack
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+## Dependencies
+
+### Core Dependencies
+
+- Next.js 15
+- React 19
+- TypeScript
+- TailwindCSS
+- MongoDB
+- Pinecone
+- LangChain
+
+### Document Processing
+
+- pdf-parse
+- mammoth
+- docx-parser
+- @xenova/transformers
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

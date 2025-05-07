@@ -11,8 +11,8 @@ import {
 } from "@heroicons/react/24/outline";
 import {Message} from "@/types/messages";
 
-// Intervalo de actualización en milisegundos (30 segundos)
-const REFRESH_INTERVAL = 30000;
+// Intervalo de actualización en milisegundos (10 segundos)
+const REFRESH_INTERVAL = 10000;
 
 export default function ConversationPage() {
   const {id} = useParams<{id: string}>();

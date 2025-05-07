@@ -136,7 +136,9 @@ export default function DocumentsPage() {
 
   // Función para mostrar el tipo de archivo con un icono
   const getFileTypeDisplay = (type: string) => {
-    if (type.includes("docx") || type.includes("word")) {
+    if (type.includes("pdf")) {
+      return "PDF";
+    } else if (type.includes("docx") || type.includes("word")) {
       return "DOCX";
     } else if (type.includes("text")) {
       return "TXT";
@@ -172,6 +174,7 @@ export default function DocumentsPage() {
   // Botón para seleccionar el tipo de fuente a añadir
   const AddSourceButton = () => (
     <div className="relative">
+
       {showOptions && (
         <div
           className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"

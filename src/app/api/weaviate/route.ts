@@ -43,11 +43,14 @@ export async function GET() {
     }
 
     const data = [response.objects[0].properties];
+
     data[0].id = response.objects[0].uuid;
 
     const file = await fileColection.findOne({
       status: 2,
     });
+
+    console.log("Archivo:", file);
 
     return NextResponse.json({
       success: true,

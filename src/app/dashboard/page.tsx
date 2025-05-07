@@ -193,7 +193,7 @@ export default function DashboardPage() {
             </span>
             <button
               onClick={() => fetchMessages()}
-              className="ml-2 p-1 text-blue-500 hover:text-blue-700 text-sm"
+              className="ml-2 p-1 text-[#01f6d2] hover:text-blue-700 text-sm"
               disabled={isLoading}
             >
               Actualizar
@@ -203,7 +203,7 @@ export default function DashboardPage() {
 
         {isLoading && messages.length === 0 ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#01f6d2]"></div>
             <span className="ml-3 text-lg text-gray-700">
               Cargando conversaciones...
             </span>
@@ -246,7 +246,7 @@ export default function DashboardPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Última consulta
+                    Pregunta y Respuesta
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Mensajes
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link
                         href={`/dashboard/conversations/${conversation.id}`}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-[#01f6d2] hover:text-blue-900"
                       >
                         Ver detalles
                       </Link>

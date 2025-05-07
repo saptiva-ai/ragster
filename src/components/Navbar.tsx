@@ -10,6 +10,7 @@ import {
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   ChartBarIcon,
+  CircleStackIcon,
 } from "@heroicons/react/24/outline";
 
 export default function Navbar() {
@@ -68,6 +69,17 @@ export default function Navbar() {
                   <div className="flex items-center">
                     <ChartBarIcon className="h-5 w-5 mr-1" />
                     <span>Dashboard</span>
+                  </div>
+                </Link>
+                <Link
+                  href="/dashboard/weaviate"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${isActive(
+                    "/dashboard/weaviate",
+                  )}`}
+                >
+                  <div className="flex items-center">
+                    <CircleStackIcon className="h-5 w-5 mr-1" />
+                    <span>BD</span>
                   </div>
                 </Link>
                 <Link
@@ -141,6 +153,18 @@ export default function Navbar() {
             <div className="flex items-center">
               <ChartBarIcon className="h-5 w-5 mr-2" />
               <span>Dashboard</span>
+            </div>
+          </Link>
+          <Link
+            href="/weaviate-records"
+            className={`block px-3 py-2 rounded-md text-base font-medium ${isActive(
+              "/weaviate-records",
+            )}`}
+            onClick={() => setIsMenuOpen(false)}
+          >
+            <div className="flex items-center">
+              <CircleStackIcon className="h-5 w-5 mr-2" />
+              <span>Registros</span>
             </div>
           </Link>
           <Link

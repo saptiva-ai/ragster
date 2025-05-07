@@ -17,24 +17,17 @@ const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
 
 // Asegúrate que la clase existe en Weaviate
 async function ensureWeaviateClassExists(className: string) {
-  const myCollection = client.collections.get(className);
-  if (!myCollection) {
-    console.log(`La colección ${className} no existe.`);
-    client.collections.create({
+  // 1. Listar todas las colecciones/clases
+  const collections = await client.collections.listAll();
+  const exists = collections.some(
+    (col: {name: string}) => col.name === className,
+  );
+
+  if (!exists) {
+    console.log(`La colección ${className} no existe. Creando...`);
+    await client.collections.create({
       name: className,
-      vectorizers: [
-        weaviate.configure.vectorizer.text2VecWeaviate({
-          name: "text_vector",
-          sourceProperties: ["text"],
-          model: "Snowflake/snowflake-arctic-embed-l-v2.0",
-        }),
-      ],
-      generative: weaviate.configure.generative.openAI({
-        model: "gpt-3.5-turbo",
-        temperature: 0.7,
-        maxTokens: 1000,
-        topP: 1,
-      }),
+      vectorizers: [],
       properties: [
         {name: "text", dataType: "text"},
         {name: "sourceName", dataType: "text"},
@@ -44,8 +37,15 @@ async function ensureWeaviateClassExists(className: string) {
         {name: "chunkIndex", dataType: "int"},
         {name: "totalChunks", dataType: "int"},
         {name: "sourceNamespace", dataType: "text"},
+        {name: "prevChunkIndex", dataType: "int"},
+        {name: "nextChunkIndex", dataType: "int"},
       ],
     });
+    // Esperar a que la colección esté disponible (opcional: reintentos)
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log(`Colección ${className} creada.`);
+  } else {
+    console.log(`La colección ${className} ya existe.`);
   }
 }
 
@@ -80,6 +80,24 @@ interface Chunk {
   answer: string;
 }
 
+/*async function getOpenAIEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const response = await axios.post(
+    "https://api.openai.com/v1/embeddings",
+    {
+      input: text,
+      model: "text-embedding-3-small",
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
+  );
+  return response.data.data[0].embedding;
+}*/
+
 async function insertDataToWeaviate(
   chunks: Chunk[],
   filename: string,
@@ -90,18 +108,54 @@ async function insertDataToWeaviate(
   const {db} = await connectToDatabase();
   const fileColection = db.collection("file");
 
-  await client.collections.get("DocumentChunk").data.insertMany(
-    chunks.map((item, index) => ({
-      text: item.text,
-      chunkIndex: index + 1,
-      totalChunks: chunks.length,
-      sourceName: filename,
-      sourceType: file.type,
-      sourceSize: file.size.toString(),
-      uploadDate: new Date().toISOString(),
-      sourceNamespace: formNamespace,
-    })),
+  // Procesar embeddings y relaciones contextuales
+  const enrichedChunks = await Promise.all(
+    chunks.map(async (item, index) => {
+      //onst embedding = await getOpenAIEmbedding(item.text);
+      return {
+        ...item,
+        chunkIndex: index + 1,
+        totalChunks: chunks.length,
+        prevChunkIndex: index > 0 ? index : null,
+        nextChunkIndex: index < chunks.length - 1 ? index + 2 : null,
+        sourceName: filename,
+        sourceType: file.type,
+        sourceSize: file.size.toString(),
+        uploadDate: new Date().toISOString(),
+        sourceNamespace: formNamespace,
+      };
+    }),
   );
+
+  // 1. Construir el array de objetos a insertar
+  const docsToInsert = enrichedChunks.map((item) => ({
+    text: item.text,
+    chunkIndex: item.chunkIndex,
+    totalChunks: item.totalChunks,
+    prevChunkIndex: item.prevChunkIndex,
+    nextChunkIndex: item.nextChunkIndex,
+    sourceName: item.sourceName,
+    sourceType: item.sourceType,
+    sourceSize: item.sourceSize,
+    uploadDate: item.uploadDate,
+    sourceNamespace: item.sourceNamespace,
+    //embedding: item.embedding,
+  }));
+
+  // 2. Loguear el array completo
+  console.log(
+    "Docs a insertar en Weaviate:",
+    JSON.stringify(docsToInsert, null, 2),
+  );
+
+  // 3. Intentar el insert y capturar errores
+  try {
+    await client.collections.get("DocumentChunk").data.insertMany(docsToInsert);
+    console.log("Insert exitoso en Weaviate. Total:", docsToInsert.length);
+  } catch (error) {
+    console.error("Error al insertar en Weaviate:", error);
+    throw error;
+  }
 
   await fileColection.updateOne({_id: idUploadFile}, {$set: {status: 2}});
 }
@@ -202,7 +256,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Aquí se suben los datos a Weaviate
-        insertDataToWeaviate(
+        await insertDataToWeaviate(
           chunks,
           filename,
           file,
