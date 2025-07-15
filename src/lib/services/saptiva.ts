@@ -26,24 +26,6 @@ export class SaptivaService {
       const collection = db.collection("messages");
       const messageArray: {role: string; content: string}[] = [];
 
-      /*
-      const messages = await collection
-        .find({message_id: id})
-        .sort({_id: -1}) // Orden descendente por _id (más recientes primero)
-        .limit(3)
-        .toArray();
-
-      messages.reverse();
-
-      if (messages.length > 0) {
-        messageArray = messages.map((message) => {
-          return {
-            role: message.message_role,
-            content: message.message,
-          };
-        });
-      }*/
-
       messageArray.push(
         {
           role: "system",
@@ -62,8 +44,6 @@ export class SaptivaService {
         temperature: temperature,
         top_p: 0.95,
       };
-
-      //console.log("Payload:", JSON.stringify(payload));
 
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
