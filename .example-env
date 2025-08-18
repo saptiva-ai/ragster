@@ -1,0 +1,20 @@
+#Saptiva API Key
+SAPTIVA_API_KEY=
+
+#Saptiva API Base URL
+SAPTIVA_API_BASE_URL=https://api.saptiva.com/
+
+#Variables de entorno para la aplicación
+#Base de datos MongoDB
+MONGODB_URI=
+MONGODB_DB=
+
+#META 
+URL_META=https://graph.facebook.com/v19.0
+
+#NEXT
+NEXT_PUBLIC_CHAT_API=http://localhost:3000
+
+#Vector Database (Weaviate)
+WEAVIATE_HOST=""
+WEAVIATE_API_KEY=""
