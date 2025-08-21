@@ -1,18 +1,18 @@
-import {NextRequest, NextResponse} from "next/server";
-import {connectToDatabase} from "@/lib/mongodb/client";
-import {sendMessageToWABA} from "@/lib/wab/sendMessage";
+import { NextRequest, NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/mongodb/client";
+import { sendMessageToWABA } from "@/lib/wab/sendMessage";
 
 // POST WABA
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {from, text, type} = body;
+    const { from, text, type } = body;
     console.log("Recibida solicitud POST:", body);
 
     const query = text.body;
 
     try {
-      const {db} = await connectToDatabase();
+      const { db } = await connectToDatabase();
       const settingsCollection = db.collection("settings");
 
       //Buscar configuracion WABA
@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (query.toLowerCase() === "reset") {
-        const {db} = await connectToDatabase();
+        const { db } = await connectToDatabase();
         const collection = db.collection("messages");
-        await collection.deleteMany({message_id: from});
+        await collection.deleteMany({ message_id: from });
 
         return NextResponse.json({
           success: true,
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
               "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
             source: "wab",
             topK: 5,
+            contacts: body.contacts ?? [],
           }),
         },
       )
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
           error: "Error al procesar la solicitud",
           details: error instanceof Error ? error.message : "Error desconocido",
         },
-        {status: 500},
+        { status: 500 },
       );
     }
   } catch (error) {
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
         error: "Error al procesar la solicitud",
         details: error instanceof Error ? error.message : "Error desconocido",
       },
-      {status: 500},
+      { status: 500 },
     );
   }
 }
