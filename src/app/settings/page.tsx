@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 
@@ -54,23 +54,16 @@ export default function SettingsPage() {
       visible: true,
     });
 
-    // Ocultar notificación después de 5 segundos
     setTimeout(() => {
       setNotification((prev) => ({ ...prev, visible: false }));
     }, 5000);
   };
 
-  // Obtener configuraciones guardadas al cargar
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  // Cargar configuraciones desde el servidor
-  const fetchSettings = async () => {
+  // 🔹 Cargar configuraciones desde el servidor (estable con useCallback)
+  const fetchSettings = useCallback(async () => {
     setIsLoading(true);
-
     try {
-      // Cargar configuraciones de API
+      // API settings
       const apiResponse = await fetch("/api/settings?key=apiSettings");
       if (apiResponse.ok) {
         const apiData = await apiResponse.json();
@@ -79,7 +72,7 @@ export default function SettingsPage() {
         }
       }
 
-      // Cargar configuraciones del modelo
+      // Model settings
       const modelResponse = await fetch("/api/settings?key=modelSettings");
       if (modelResponse.ok) {
         const modelData = await modelResponse.json();
@@ -88,7 +81,7 @@ export default function SettingsPage() {
         }
       }
 
-      // Cargar configuraciones de WABA
+      // WABA settings
       const wabaResponse = await fetch("/api/settings?key=wabaSettings");
       if (wabaResponse.ok) {
         const wabaData = await wabaResponse.json();
@@ -102,7 +95,12 @@ export default function SettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // 🔹 Llamar al cargar
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   // Manejar cambios en la configuración del modelo
   const handleModelChange = (
@@ -111,7 +109,6 @@ export default function SettingsPage() {
     >,
   ) => {
     const { name, value } = e.target;
-
     setModelSettings((prev) => ({
       ...prev,
       [name]: name === "temperature" ? parseFloat(value) : value,
@@ -130,15 +127,10 @@ export default function SettingsPage() {
   // Guardar configuraciones del modelo
   const handleSaveModelSettings = async () => {
     setIsLoading(true);
-
-    console.log("Guardando configuraciones del modelo:", modelSettings);
-
     try {
       const response = await fetch("/api/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           key: "modelSettings",
           data: modelSettings,
@@ -151,15 +143,16 @@ export default function SettingsPage() {
           "Configuración del modelo guardada correctamente",
         );
 
-        // Emitir evento para actualizar otros componentes
+        // Emitir evento global
         window.dispatchEvent(
-          new CustomEvent("settingsChanged", {
-            detail: modelSettings,
-          }),
+          new CustomEvent("settingsChanged", { detail: modelSettings }),
         );
 
-        // Actualizar localStorage para compatibilidad
+        // Guardar en localStorage
         localStorage.setItem("modelSettings", JSON.stringify(modelSettings));
+
+        // 🔹 Recargar al momento
+        fetchSettings();
       } else {
         const error = await response.json();
         throw new Error(error.error || "Error al guardar configuración");
@@ -178,13 +171,10 @@ export default function SettingsPage() {
   // Guardar configuraciones de WABA
   const handleSaveWabaSettings = async () => {
     setIsLoading(true);
-
     try {
       const response = await fetch("/api/settings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           key: "wabaSettings",
           data: wabaSettings,
@@ -196,6 +186,9 @@ export default function SettingsPage() {
           "success",
           "Configuración de WhatsApp Business guardada correctamente",
         );
+
+        // 🔹 Recargar al momento
+        fetchSettings();
       } else {
         const error = await response.json();
         throw new Error(error.error || "Error al guardar configuración");
@@ -223,139 +216,19 @@ export default function SettingsPage() {
       {/* Notificación */}
       {notification.visible && (
         <div
-          className={`p-4 mb-6 rounded-md ${notification.success
-            ? "bg-green-50 text-green-800"
-            : "bg-red-50 text-red-800"
-            }`}
+          className={`p-4 mb-6 rounded-md ${
+            notification.success
+              ? "bg-green-50 text-green-800"
+              : "bg-red-50 text-red-800"
+          }`}
         >
           {notification.success || notification.error}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Configuración del API 
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-[#01f6d2]">Configuración del API</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="pineconeApiKey" className="block text-sm font-medium text-black">
-                  Pinecone API Key
-                </label>
-                <input
-                  type="password"
-                  id="pineconeApiKey"
-                  name="pineconeApiKey"
-                  value={apiSettings.pineconeApiKey}
-                  onChange={handleApiChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[#01f6d2] focus:border-[#01f6d2] sm:text-sm placeholder-gray-600"
-                  placeholder="sk-..."
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pinecone Index
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeIndex"
-                    value={apiSettings.pineconeIndex}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="ragster"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pinecone Environment
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeEnvironment"
-                    value={apiSettings.pineconeEnvironment}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="us-east-1"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pinecone Host
-                </label>
-                <input
-                  type="text"
-                  name="pineconeHost"
-                  value={apiSettings.pineconeHost}
-                  onChange={handleApiChange}
-                  className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                  placeholder="https://ragster-xxxx.svc.example.pinecone.io"
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Embedding Model
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeModel"
-                    value={apiSettings.pineconeModel}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-600"
-                    placeholder="multilingual-e5-large"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Model Dimensions
-                  </label>
-                  <input
-                    type="text"
-                    name="pineconeModelDimensions"
-                    value={apiSettings.pineconeModelDimensions}
-                    onChange={handleApiChange}
-                    className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
-                    placeholder="1024"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Saptiva API Key
-                </label>
-                <input
-                  type="password"
-                  name="saptivaApiKey"
-                  value={apiSettings.saptivaApiKey}
-                  onChange={handleApiChange}
-                  className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
-                  placeholder="va-ai-..."
-                />
-              </div>
-              
-              <button
-                onClick={handleSaveApiSettings}
-                disabled={isLoading}
-                className={`px-4 py-2 rounded-md ${
-                  isLoading
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-[#01f6d2] hover:bg-teal-500 text-black'
-                }`}
-              >
-                {isLoading ? 'Guardando...' : 'Guardar configuración API'}
-              </button>
-            </div>
-          </div>*/}
+        {/* Configuración de WhatsApp Business */}
         <div className="col-span-3 md:col-span-2">
-          {/* Configuración de WhatsApp Business */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-4 text-[#01f6d2]">
               Configuración de WhatsApp Business API
@@ -371,10 +244,7 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="h-4 w-4 text-[#01f6d2] rounded border-gray-300 focus:ring-[#01f6d2]"
                 />
-                <label
-                  htmlFor="isEnabled"
-                  className="ml-2 block text-sm text-black"
-                >
+                <label htmlFor="isEnabled" className="ml-2 block text-sm text-black">
                   Habilitar integración con WhatsApp
                 </label>
               </div>
@@ -392,10 +262,6 @@ export default function SettingsPage() {
                   placeholder="123456789012345"
                   disabled={!wabaSettings.isEnabled}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Identificador único del número de teléfono de WhatsApp
-                  Business
-                </p>
               </div>
 
               <div>
@@ -411,9 +277,6 @@ export default function SettingsPage() {
                   placeholder="123456789"
                   disabled={!wabaSettings.isEnabled}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Identificador de tu cuenta de WhatsApp Business
-                </p>
               </div>
 
               <div>
@@ -429,18 +292,16 @@ export default function SettingsPage() {
                   placeholder="EAABx..."
                   disabled={!wabaSettings.isEnabled}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Token de acceso permanente generado en Facebook Developer
-                </p>
               </div>
 
               <button
                 onClick={handleSaveWabaSettings}
                 disabled={isLoading || !wabaSettings.isEnabled}
-                className={`px-4 py-2 rounded-md ${isLoading || !wabaSettings.isEnabled
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-[#01f6d2] hover:bg-teal-500 text-black"
-                  }`}
+                className={`px-4 py-2 rounded-md ${
+                  isLoading || !wabaSettings.isEnabled
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-[#01f6d2] hover:bg-teal-500 text-black"
+                }`}
               >
                 {isLoading ? "Guardando..." : "Guardar configuración WhatsApp"}
               </button>
@@ -448,7 +309,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Configuración del modelo LLM */}
+        {/* Configuración del modelo */}
         <div className="col-span-3 md:col-span-1">
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-4 text-[#01f6d2]">
@@ -466,7 +327,6 @@ export default function SettingsPage() {
                   onChange={handleModelChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 >
-
                   <option value="Saptiva Turbo">Saptiva Turbo</option>
                   <option value="Saptiva Cortex">Saptiva Cortex</option>
                   <option value="Saptiva Ops">Saptiva Ops</option>
@@ -507,10 +367,11 @@ export default function SettingsPage() {
               <button
                 onClick={handleSaveModelSettings}
                 disabled={isLoading}
-                className={`px-4 py-2 rounded-md ${isLoading
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-[#01f6d2] hover:bg-teal-500 text-black"
-                  }`}
+                className={`px-4 py-2 rounded-md ${
+                  isLoading
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-[#01f6d2] hover:bg-teal-500 text-black"
+                }`}
               >
                 {isLoading ? "Guardando..." : "Guardar configuración modelo"}
               </button>
