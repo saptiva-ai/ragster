@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import {DEFAULT_MODEL_SETTINGS, CHAT_MODELS} from "@/config/models";
 
 interface ModelSettingsData {
   modelId: string;
@@ -25,10 +26,9 @@ interface NotificationState {
 
 export default function SettingsPage() {
   const [modelSettings, setModelSettings] = useState<ModelSettingsData>({
-    modelId: "Qwen",
-    temperature: 0.7,
-    systemPrompt:
-      "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
+    modelId: DEFAULT_MODEL_SETTINGS.modelId,
+    temperature: DEFAULT_MODEL_SETTINGS.temperature,
+    systemPrompt: DEFAULT_MODEL_SETTINGS.systemPrompt,
   });
 
   const [wabaSettings, setWabaSettings] = useState<WabaSettingsData>({
@@ -327,11 +327,11 @@ export default function SettingsPage() {
                   onChange={handleModelChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 >
-                  <option value="Saptiva Turbo">Saptiva Turbo</option>
-                  <option value="Saptiva Cortex">Saptiva Cortex</option>
-                  <option value="Saptiva Ops">Saptiva Ops</option>
-                  <option value="Qwen">Qwen</option>
-                  <option value="LLaMa3.3 70B">LLaMa3.3 70B</option>
+                  {CHAT_MODELS.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

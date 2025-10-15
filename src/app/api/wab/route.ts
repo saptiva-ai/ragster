@@ -36,8 +36,13 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Remove trailing slash to prevent double slash in URL
+      const chatApiUrl = process.env.NEXT_PUBLIC_CHAT_API?.endsWith("/")
+        ? process.env.NEXT_PUBLIC_CHAT_API.slice(0, -1)
+        : process.env.NEXT_PUBLIC_CHAT_API;
+
       let responseBot = await fetch(
-        `${process.env.NEXT_PUBLIC_CHAT_API}/api/query-weaviate`,
+        `${chatApiUrl}/api/query-weaviate`,
         {
           headers: {
             "Content-Type": "application/json",

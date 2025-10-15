@@ -50,7 +50,7 @@ A modern web application built with Next.js for processing documents, generating
 Add the following to your `.env.local`:
 
 ```env
-WEAVIATE_URL=your_weaviate_url
+WEAVIATE_HOST=your_weaviate_host
 WEAVIATE_API_KEY=your_weaviate_api_key
 ```
 
@@ -58,8 +58,9 @@ WEAVIATE_API_KEY=your_weaviate_api_key
 
 ### Prerequisites
 
-- Node.js 18+
-- MongoDB
+- Node.js 18+ ([download](https://nodejs.org/))
+- MongoDB ([download](https://www.mongodb.com/try/download/community))
+- Saptiva API key
 - Weaviate account and API key
 
 ### Installation
@@ -68,7 +69,7 @@ WEAVIATE_API_KEY=your_weaviate_api_key
 
 ```bash
 git clone https://github.com/saptiva-ai/ragster-weaviate.git
-cd ragster
+cd ragster-weaviate
 ```
 
 2. Install dependencies:
@@ -77,34 +78,44 @@ cd ragster
 npm install
 ```
 
-3. Create a `.env.local` file with your environment variables:
+3. **Get your API keys:**
+
+   **Saptiva API Key:**
+   - Visit [lab.saptiva.com](https://lab.saptiva.com/)
+   - Sign in → Create API Key → Copy key (starts with `va-ai-`)
+
+   **Weaviate Credentials:**
+   - Visit [console.weaviate.cloud](https://console.weaviate.cloud/)
+   - Create free cluster → Copy REST Endpoint + API Key
+
+4. Create a `.env.local` file with your environment variables:
 
 ```env
-#Saptiva API Key
+# Saptiva API Configuration
 SAPTIVA_API_KEY=
+SAPTIVA_API_BASE_URL=https://api.saptiva.com
+EMBEDDING_API_URL=https://api.saptiva.com/api/embed
 
-#Saptiva API Base URL
-SAPTIVA_API_BASE_URL=https://api.saptiva.com/
-
-#Variables de entorno para la aplicación
-#Base de datos MongoDB
+# MongoDB Database
 MONGODB_URI=
 MONGODB_DB=
 
-#Embedding SAPTIVA
-EMBEDDING_API_URL=https://api.saptiva.com/api/embeddings
+# Weaviate Vector Database
+WEAVIATE_HOST=
+WEAVIATE_API_KEY=
 
-#META
-URL_META=https://graph.facebook.com/v19.0
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=
 
-#NEXT
+# Next.js Configuration
 NEXT_PUBLIC_CHAT_API=http://localhost:3000
 
-WEAVIATE_HOST=""
-WEAVIATE_API_KEY=""
+# WhatsApp Business (Optional)
+URL_META=https://graph.facebook.com/v19.0
 ```
 
-4. Run the development server:
+5. Run the development server:
 
 ```bash
 npm run dev

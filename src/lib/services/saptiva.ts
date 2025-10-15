@@ -1,4 +1,5 @@
 import { connectToDatabase } from "@/lib/mongodb/client";
+import { DEFAULT_MODELS } from "@/config/models";
 
 // Servicio para interactuar con la API de Saptiva
 export class SaptivaService {
@@ -7,7 +8,8 @@ export class SaptivaService {
 
   constructor(apiKey: string, baseUrl: string = "https://api.saptiva.com") {
     this.apiKey = apiKey;
-    this.baseUrl = baseUrl;
+    // Remove trailing slash to prevent double slash in URL
+    this.baseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   }
 
   /**
@@ -17,7 +19,7 @@ export class SaptivaService {
     id: string,
     prompt: string,
     query: string,
-    model: string = "Saptiva Turbo",
+    model: string = DEFAULT_MODELS.CHAT,
     temperature: number = 0.7,
     maxTokens: number = 1000
   ): Promise<string> {

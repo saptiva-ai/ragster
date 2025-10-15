@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAGster - Guía de Instalación Paso a Paso</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #fff;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: #222;
+            z-index: 1000;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #05facb 0%, #05facb 100%);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px 40px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            background: linear-gradient(135deg, #05facb 0%, #05facb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.2rem;
+        }
+
+        .step-indicator {
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 25px;
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+            border-color: #05facb;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .section.completed {
+            border-color: #333;
+        }
+
+        .section.completed h2::after {
+            content: " ✓";
+            color: #05facb;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section h2 {
+            color: #05facb;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .step-content {
+            color: #ccc;
+            margin-bottom: 20px;
+        }
+
+        .step-list {
+            margin: 20px 0;
+            padding-left: 20px;
+        }
+
+        .step-list li {
+            margin-bottom: 12px;
+            color: #ccc;
+        }
+
+        .input-group {
+            margin: 25px 0;
+        }
+
+        label {
+            display: block;
+            color: #05facb;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .hint {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .link {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .link a {
+            color: #05facb;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .link a:hover {
+            text-decoration: underline;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #05facb;
+            box-shadow: 0 0 0 3px #05facb1a;
+        }
+
+        input::placeholder {
+            color: #555;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #05facb 0%, #05facb 100%);
+            color: #fff;
+            border: none;
+            padding: 16px 32px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px #05facb4d;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #444;
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .warning-box {
+            background: #1a1100;
+            border: 2px solid #ff9800;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            color: #ff9800;
+            font-size: 0.95rem;
+        }
+
+        .info-box {
+            background: #1a1500;
+            border: 2px solid #fbbf24;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            color: #fbbf24;
+            font-size: 0.95rem;
+        }
+
+        .success-box {
+            background: #05facb1a;
+            border: 2px solid #05facb;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            color: #05facb;
+            font-size: 0.95rem;
+        }
+
+        .mongo-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .option-card {
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .option-card:hover {
+            border-color: #05facb;
+            transform: translateY(-2px);
+        }
+
+        .option-card.selected {
+            border-color: #05facb;
+            background: #05facb1a;
+        }
+
+        .option-card h3 {
+            color: #05facb;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .option-card p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .code-block {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            color: #05facb;
+            overflow-x: auto;
+        }
+
+        code {
+            background: #0a0a0a;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #05facb;
+        }
+
+        .review-section {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+
+        .review-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #222;
+        }
+
+        .review-item:last-child {
+            border-bottom: none;
+        }
+
+        .review-label {
+            color: #05facb;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .review-value {
+            color: #888;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .review-hidden {
+            color: #555;
+        }
+
+        .edit-btn {
+            background: none;
+            border: 1px solid #333;
+            color: #05facb;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 15px;
+            transition: all 0.2s;
+        }
+
+        .edit-btn:hover {
+            border-color: #05facb;
+            background: #05facb1a;
+        }
+
+        strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Modal Popup */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #111;
+            border: 2px solid #05facb;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 600px;
+            text-align: center;
+            animation: modalFadeIn 0.3s ease;
+            position: relative;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 2rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .modal-close:hover {
+            color: #05facb;
+        }
+
+        .modal-title {
+            font-size: 2rem;
+            color: #05facb;
+            margin-bottom: 20px;
+        }
+
+        .modal-steps {
+            text-align: left;
+            margin-top: 30px;
+            font-size: 1.1rem;
+            line-height: 2;
+        }
+
+        .modal-steps strong {
+            color: #05facb;
+        }
+    </style>
+</head>
+<body>
+    <!-- Success Modal -->
+    <div class="modal-overlay" id="successModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div class="modal-title">✅ ¡Configuración copiada!</div>
+            <p style="color: #ccc; font-size: 1.1rem;">Tu archivo .env.local ha sido copiado al portapapeles.</p>
+            <div class="modal-steps">
+                <strong>Próximos pasos:</strong><br>
+                <strong>1.</strong> Ve a la raíz del proyecto <code>ragster-weaviate</code><br>
+                <strong>2.</strong> Crea un archivo llamado <code>.env.local</code><br>
+                <strong>3.</strong> Pega el contenido copiado (Ctrl+V / Cmd+V)<br>
+                <strong>4.</strong> Guarda el archivo<br>
+                <strong>5.</strong> Ejecuta <code>npm run dev</code><br>
+                <strong>6.</strong> Abre <a href="http://localhost:3000" target="_blank" style="color: #05facb; text-decoration: underline;">http://localhost:3000</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>RAGster</h1>
+            <p class="subtitle">Instalación Paso a Paso en 5 minutos</p>
+        </header>
+
+        <div class="step-indicator" id="stepIndicator">Paso 1 de 4</div>
+
+        <!-- Paso 1: Clonar e Instalar -->
+        <div class="section active" id="section1">
+            <h2>1. Clonar el repositorio</h2>
+            <div class="step-content">
+                <p>Primero, clona el repositorio de RAGster y instala las dependencias:</p>
+
+                <div class="code-block">git clone https://github.com/saptiva-ai/ragster-weaviate.git<br>cd ragster-weaviate<br>npm install</div>
+
+                <div class="info-box">
+                    💡 <strong>Tip:</strong> Asegúrate de tener Node.js v18 o superior. Si no lo tienes, descárgalo aquí: <a href="https://nodejs.org/" target="_blank" style="color: #fbbf24; text-decoration: underline;">https://nodejs.org/</a><br>
+                    Verifica tu versión con: <code>node --version</code>
+                </div>
+            </div>
+
+            <button class="btn" onclick="goToStep(2)">Siguiente →</button>
+        </div>
+
+        <!-- Paso 2: Obtener Saptiva API Key -->
+        <div class="section" id="section2">
+            <h2>2. Obtener Saptiva API Key</h2>
+            <div class="step-content">
+                <p>Sigue estos pasos para obtener tu API Key de Saptiva:</p>
+
+                <ol class="step-list">
+                    <li>Ir a <a href="https://lab.saptiva.com/" target="_blank" style="color: #05facb;">https://lab.saptiva.com/</a></li>
+                    <li>Iniciar sesión con Google</li>
+                    <li>En el menú lateral, hacer clic en <strong>Crear API Key</strong></li>
+                    <li>Hacer clic en el botón <strong>+ Crear API Key</strong></li>
+                    <li>Nombre: <code>ragster</code></li>
+                    <li>Hacer clic en <strong>Crear API Key</strong></li>
+                    <li>⚠️ <strong>Copiar la API Key inmediatamente</strong> (no se podrá ver de nuevo)</li>
+                </ol>
+            </div>
+
+            <div class="input-group">
+                <label for="saptivaKey">Pega tu Saptiva API Key:</label>
+                <span class="hint">Comienza con "va-ai-" seguido de caracteres alfanuméricos</span>
+                <input type="text" id="saptivaKey" placeholder="va-ai-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+            </div>
+
+            <div class="warning-box">
+                ⚠️ <strong>Importante:</strong> Guarda esta API Key en un lugar seguro. Una vez que cierres la ventana en lab.saptiva.com, no podrás verla de nuevo.
+            </div>
+
+            <button class="btn" id="saveStep2" onclick="saveStep(2)" disabled>Guardar y Continuar →</button>
+            <button class="btn-secondary btn" onclick="goToStep(1)">← Anterior</button>
+        </div>
+
+        <!-- Paso 3: Obtener Weaviate Credentials -->
+        <div class="section" id="section3">
+            <h2>3. Obtener Weaviate Credentials</h2>
+            <div class="step-content">
+                <p>Configura tu base de datos vectorial con Weaviate:</p>
+
+                <ol class="step-list">
+                    <li>Ir a <a href="https://console.weaviate.cloud/" target="_blank" style="color: #05facb;">https://console.weaviate.cloud/</a></li>
+                    <li>Crear cuenta o iniciar sesión</li>
+                    <li>Hacer clic en <strong>Create cluster</strong></li>
+                    <li>Seleccionar plan <strong>Free sandbox</strong></li>
+                    <li>Nombre del cluster: <code>ragster</code></li>
+                    <li>Hacer clic en <strong>Create</strong></li>
+                    <li>⏱️ Esperar 1-2 minutos mientras se crea el cluster</li>
+                    <li>Hacer clic en tu cluster → pestaña <strong>Details</strong></li>
+                    <li>Copiar el <strong>REST Endpoint</strong></li>
+                    <li>Ir a pestaña <strong>API Keys</strong></li>
+                    <li>Crear API Key con nombre: <code>ragster</code></li>
+                    <li>Copiar el <strong>Admin API Key</strong></li>
+                </ol>
+            </div>
+
+            <div class="input-group">
+                <label for="weaviateHost">Weaviate REST Endpoint (WEAVIATE_HOST):</label>
+                <span class="hint">Ejemplo: https://ragster-xxx.weaviate.network</span>
+                <input type="text" id="weaviateHost" placeholder="https://ragster-xxx.weaviate.network" autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="weaviateKey">Weaviate Admin API Key (WEAVIATE_API_KEY):</label>
+                <span class="hint">Cadena alfanumérica larga</span>
+                <input type="text" id="weaviateKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+            </div>
+
+            <div class="info-box">
+                💡 <strong>Tip:</strong> El cluster gratuito de Weaviate se desactiva después de 14 días de inactividad.
+            </div>
+
+            <button class="btn" id="saveStep3" onclick="saveStep(3)" disabled>Guardar y Continuar →</button>
+            <button class="btn-secondary btn" onclick="goToStep(2)">← Anterior</button>
+        </div>
+
+        <!-- Paso 4: Instalar MongoDB -->
+        <div class="section" id="section4">
+            <h2>4. Instalar MongoDB Local</h2>
+            <div class="step-content">
+                <p><strong>Descargar e instalar MongoDB Community Server:</strong></p>
+                <ol class="step-list">
+                    <li>Ir a <a href="https://www.mongodb.com/try/download/community" target="_blank" style="color: #05facb;">https://www.mongodb.com/try/download/community</a></li>
+                    <li>Descargar <strong>MongoDB Community Server</strong></li>
+                    <li>Instalar (marcar "Install as a Service")</li>
+                    <li>MongoDB se inicia automáticamente</li>
+                </ol>
+
+                <div class="success-box">
+                    ✓ <strong>Valores automáticos de MongoDB:</strong><br>
+                    Estos valores ya están configurados por defecto para localhost.
+                </div>
+
+                <p style="margin-top: 25px;"><strong>Para visualizar tu base de datos (opcional):</strong></p>
+                <div class="info-box">
+                    💡 Descarga <strong>MongoDB Compass</strong> para ver tus datos visualmente:<br>
+                    <a href="https://www.mongodb.com/try/download/compass" target="_blank" style="color: #fbbf24; text-decoration: underline;">https://www.mongodb.com/try/download/compass</a><br>
+                    Conecta con: <code>mongodb://localhost:27017</code>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="mongoUri">MongoDB URI:</label>
+                <input type="text" id="mongoUri" value="mongodb://localhost:27017" readonly>
+            </div>
+
+            <button class="btn" onclick="saveStep(4)">Guardar y Continuar →</button>
+            <button class="btn-secondary btn" onclick="goToStep(3)">← Anterior</button>
+        </div>
+
+        <!-- Paso 5: Revisar y Descargar -->
+        <div class="section" id="section5">
+            <h2>5. Revisar y Generar .env.local</h2>
+            <div class="step-content">
+                <p>Revisa tu configuración antes de generar el archivo:</p>
+            </div>
+
+            <div class="review-section">
+                <div class="review-item">
+                    <div>
+                        <div class="review-label">Saptiva API Key</div>
+                        <div class="review-value" id="reviewSaptiva">No configurado</div>
+                    </div>
+                    <button class="edit-btn" onclick="goToStep(2)">Editar</button>
+                </div>
+                <div class="review-item">
+                    <div>
+                        <div class="review-label">Weaviate Host</div>
+                        <div class="review-value" id="reviewWeaviateHost">No configurado</div>
+                    </div>
+                    <button class="edit-btn" onclick="goToStep(3)">Editar</button>
+                </div>
+                <div class="review-item">
+                    <div>
+                        <div class="review-label">Weaviate API Key</div>
+                        <div class="review-value review-hidden" id="reviewWeaviateKey">No configurado</div>
+                    </div>
+                    <button class="edit-btn" onclick="goToStep(3)">Editar</button>
+                </div>
+                <div class="review-item">
+                    <div>
+                        <div class="review-label">MongoDB URI</div>
+                        <div class="review-value" id="reviewMongo">mongodb://localhost:27017</div>
+                    </div>
+                    <button class="edit-btn" onclick="goToStep(4)">Editar</button>
+                </div>
+                <div class="review-item">
+                    <div>
+                        <div class="review-label">NextAuth Secret</div>
+                        <div class="review-value review-hidden">••••••••••••••••</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="copyEnvToClipboard()">📋 Copiar .env.local al Portapapeles</button>
+            <button class="btn-secondary btn" onclick="goToStep(4)">← Anterior</button>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        const STATE_KEY = 'ragster-setup-state-v3';
+
+        // Cargar estado guardado
+        window.onload = function() {
+            updateProgress();
+        };
+
+        // DISABLED: No storage for security (keys never saved)
+        function saveState() {
+            // Do nothing - no data persistence
+        }
+
+        // DISABLED: No storage for security (keys never saved)
+        function loadState() {
+            // Do nothing - no data persistence
+        }
+
+        // Validar formulario al escribir (sin guardar)
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => {
+                // saveState() disabled for security
+                validateStep(currentStep);
+            });
+        });
+
+        function validateStep(step) {
+            let isValid = false;
+
+            if (step === 2) {
+                const saptivaKey = document.getElementById('saptivaKey').value.trim();
+                isValid = saptivaKey.startsWith('va-ai-') && saptivaKey.length > 10;
+                document.getElementById('saveStep2').disabled = !isValid;
+            } else if (step === 3) {
+                const weaviateHost = document.getElementById('weaviateHost').value.trim();
+                const weaviateKey = document.getElementById('weaviateKey').value.trim();
+                isValid = weaviateHost.length > 0 && weaviateKey.length > 0;
+                document.getElementById('saveStep3').disabled = !isValid;
+            } else if (step === 4) {
+                isValid = true; // MongoDB step always valid (localhost default)
+            }
+
+            return isValid;
+        }
+
+        function saveStep(step) {
+            if (!validateStep(step)) return;
+
+            document.getElementById(`section${step}`).classList.add('completed');
+            saveState();
+            goToStep(step + 1);
+        }
+
+        function goToStep(step) {
+            // Ocultar todas las secciones
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById(`section${i}`).classList.remove('active');
+            }
+
+            // Mostrar sección objetivo
+            document.getElementById(`section${step}`).classList.add('active');
+            currentStep = step;
+
+            updateProgress();
+
+            if (step === 5) {
+                updateReview();
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateProgress() {
+            const progress = ((currentStep - 1) / 4) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('stepIndicator').textContent = `Paso ${currentStep} de 5`;
+        }
+
+        function updateReview() {
+            const saptivaKey = document.getElementById('saptivaKey').value;
+            const weaviateHost = document.getElementById('weaviateHost').value;
+            const weaviateKey = document.getElementById('weaviateKey').value;
+
+            document.getElementById('reviewSaptiva').textContent = saptivaKey ? saptivaKey.substring(0, 15) + '...' : 'No configurado';
+            document.getElementById('reviewWeaviateHost').textContent = weaviateHost || 'No configurado';
+            document.getElementById('reviewWeaviateKey').textContent = weaviateKey ? '••••••••' + weaviateKey.slice(-4) : 'No configurado';
+        }
+
+
+        function generateSecret() {
+            return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        function generateEnvContent() {
+            const saptivaKey = document.getElementById('saptivaKey').value.trim();
+            let weaviateHost = document.getElementById('weaviateHost').value.trim();
+            const weaviateKey = document.getElementById('weaviateKey').value.trim();
+            const mongoUri = document.getElementById('mongoUri').value.trim();
+            const authSecret = generateSecret();
+
+            // Limpiar weaviateHost (remover https:// si existe)
+            weaviateHost = weaviateHost.replace('https://', '').replace('http://', '');
+
+            return `# ===== REQUIRED: Saptiva AI API =====
+# Get your API key from: https://lab.saptiva.com/
+SAPTIVA_API_KEY=${saptivaKey}
+SAPTIVA_API_BASE_URL=https://api.saptiva.com
+EMBEDDING_API_URL=https://api.saptiva.com/api/embed
+
+# ===== REQUIRED: MongoDB Database =====
+# Local: mongodb://localhost:27017 (install MongoDB or use Docker)
+# Cloud: Get free cluster from https://cloud.mongodb.com/
+MONGODB_URI=${mongoUri}
+MONGODB_DB=ragster
+
+# ===== REQUIRED: Weaviate Vector Database =====
+# Get free sandbox cluster from: https://console.weaviate.cloud/
+# WEAVIATE_HOST should be just the domain (e.g., xxx.weaviate.network)
+WEAVIATE_HOST=${weaviateHost}
+WEAVIATE_API_KEY=${weaviateKey}
+
+# ===== REQUIRED: NextAuth Configuration =====
+# For local dev: http://localhost:3000
+# For production: https://your-domain.com
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=${authSecret}
+
+# ===== NEXT.js Public URL =====
+NEXT_PUBLIC_CHAT_API=http://localhost:3000
+
+# ===== OPTIONAL: WhatsApp Business =====
+# Only needed if using WhatsApp integration
+# URL_META=https://graph.facebook.com/v19.0
+`;
+        }
+
+        function copyEnvToClipboard() {
+            const envContent = generateEnvContent();
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(envContent).then(() => {
+                // Mostrar modal de éxito
+                showModal();
+                document.getElementById('progressFill').style.width = '100%';
+            }).catch(err => {
+                alert('Error al copiar al portapapeles. Por favor, copia manualmente:\n\n' + envContent);
+            });
+        }
+
+        function showModal() {
+            document.getElementById('successModal').classList.add('active');
+        }
+
+        function closeModal(event) {
+            // Si se hace clic fuera del modal o en el botón cerrar
+            if (!event || event.target.classList.contains('modal-overlay')) {
+                document.getElementById('successModal').classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

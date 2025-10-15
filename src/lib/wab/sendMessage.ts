@@ -32,8 +32,13 @@ export async function sendMessageToWABA(params: any): Promise<any> {
       };
     }
 
+    // Remove trailing slash to prevent double slash in URL
+    const urlMeta = process.env.URL_META.endsWith("/")
+      ? process.env.URL_META.slice(0, -1)
+      : process.env.URL_META;
+
     let response = await fetch(
-      `${process.env.URL_META}/${settings.data.phoneNumberId}/messages`,
+      `${urlMeta}/${settings.data.phoneNumberId}/messages`,
       {
         headers: {
           "Content-Type": "application/json",
