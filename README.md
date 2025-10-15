@@ -22,6 +22,12 @@ A modern web application built with Next.js for processing documents, generating
   - MongoDB for data storage
   - LangChain for document processing
 
+- 💬 **Integración WhatsApp Business**
+  - Chatbot RAG automático que responde usando documentos vectorizados
+  - Gestión de conversaciones y leads desde MongoDB
+  - Configuración simple desde panel Settings
+  - Comando `reset` para reiniciar conversaciones
+
 ## Vector Database Management
 
 ### Weaviate Integration

@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
           const chunkText = typeof chunk.properties.text === "string"
             ? chunk.properties.text
             : "";
-          return `[Fragmento ${index + 1}]:\n${chunkText}`;
+          return `[Sección ${index + 1}]:\n${chunkText}`;
         })
         .join("\n\n---\n\n");
     }
@@ -178,16 +178,16 @@ export async function POST(req: NextRequest) {
 
       === INSTRUCCIONES CRÍTICAS ===
 
-      1. 🔢 PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODOS los fragmentos anteriores.
-      2. 📍 CITA la fuente: Cuando uses datos específicos, menciona "Según Fragmento X..." para dar trazabilidad.
-      3. ✅ USA TODOS los fragmentos: No te limites al primero. Combina información de múltiples fragmentos si es necesario.
-      4. ❌ NO digas "no hay información" o "no se puede determinar" sin haber revisado TODOS los fragmentos primero.
-      5. 🎯 Para preguntas de "por qué" o "cómo", sintetiza información de varios fragmentos.
-      6. 💬 Lenguaje claro y profesional, máximo 250 palabras.
-      7. 🚫 NUNCA inventes datos. Si realmente no está en los fragmentos, di claramente "no encuentro esa información específica en los documentos".
-      8. 🇪🇸 Responde siempre en español.
-      9. ⚠️ No incluyas etiquetas como <think> o </think>.
-      10. 📝 Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
+      1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
+      2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
+      3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
+      4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
+      5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
+      6. Lenguaje claro y profesional.
+      7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
+      8. Responde siempre en español.
+      9. No incluyas etiquetas como <think> o </think>.
+      10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
 
       Historial de conversación: "${history}"
       Última pregunta enviada: "${pregunta}"
