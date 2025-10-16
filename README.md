@@ -34,7 +34,7 @@ Una aplicación web moderna construida con Next.js para procesar documentos, gen
 
 Sigue nuestra guía paso a paso con configuración automática:
 
-**➡️ [https://saptiva-ai.github.io/ragster/setup5min.html](https://saptiva-ai.github.io/ragster/setup5min.html)**
+**➡️ [https://saptiva-ai.github.io/ragster/setup5min.html](https://saptiva-ai.github.io/ragster)**
 
 Esta guía incluye:
 - ✅ Configuración automática de variables de entorno
