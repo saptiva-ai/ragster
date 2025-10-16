@@ -1,4 +1,4 @@
-# ragster - Plataforma de Procesamiento de Documentos y Búsqueda Vectorial
+# RAGster - Plataforma de Procesamiento de Documentos y Búsqueda Vectorial
 
 Una aplicación web moderna construida con Next.js para procesar documentos, generar embeddings y realizar búsquedas semánticas usando bases de datos vectoriales.
 
@@ -27,6 +27,24 @@ Una aplicación web moderna construida con Next.js para procesar documentos, gen
   - Gestión de conversaciones y leads desde MongoDB
   - Configuración simple desde panel Settings
   - Comando `reset` para reiniciar conversaciones
+
+## 🚀 Inicio Rápido
+
+### Instalación en 5 Minutos
+
+Sigue nuestra guía paso a paso con configuración automática:
+
+**➡️ [https://saptiva-ai.github.io/ragster/setup5min.html](https://saptiva-ai.github.io/ragster/setup5min.html)**
+
+Esta guía incluye:
+- ✅ Configuración automática de variables de entorno
+- ✅ Obtención de API keys paso a paso
+- ✅ Instalación con un solo clic
+- ✅ Verificación de funcionamiento
+
+### Instalación Manual
+
+Si prefieres instalación manual, continúa con las instrucciones detalladas más abajo.
 
 ## Gestión de Base de Datos Vectorial
 
@@ -132,7 +150,7 @@ La aplicación estará disponible en `http://localhost:3000`
 ## Estructura del Proyecto
 
 ```
-ragster/
+RAGster/
 ├── src/              # Código fuente
 ├── public/           # Archivos estáticos
 └── package.json     # Dependencias del proyecto
