@@ -586,7 +586,8 @@
 
             <div class="input-group">
                 <label for="mongoUri">MongoDB URI:</label>
-                <input type="text" id="mongoUri" value="mongodb://localhost:27017" readonly>
+                <span class="hint">Para DB con autenticación: mongodb://username:password@localhost:27017</span>
+                <input type="text" id="mongoUri" value="mongodb://localhost:27017" placeholder="mongodb://localhost:27017" autocomplete="off">
             </div>
 
             <button class="btn" onclick="saveStep(4)">Guardar y Continuar →</button>
