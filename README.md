@@ -82,7 +82,7 @@ WEAVIATE_API_KEY=your_weaviate_api_key
 
 ### Prerrequisitos
 
-- Node.js 18+ ([descargar](https://nodejs.org/))
+- Node.js >= 20.18.1 ([descargar](https://nodejs.org/))
 - MongoDB ([descargar](https://www.mongodb.com/try/download/community))
 - API key de Saptiva
 - Cuenta y API key de Weaviate
