@@ -21,7 +21,7 @@ export default function SignUp() {
     const confirmPassword = formData.get('confirmPassword') as string;
 
     if (password !== confirmPassword) {
-      setError("Passwords don't match");
+      setError("Las contraseñas no coinciden");
       setIsLoading(false);
       return;
     }
@@ -42,13 +42,13 @@ export default function SignUp() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
+        throw new Error(data.error || 'Algo salió mal');
       }
 
       // Redirect to sign in page after successful registration
       router.push('/auth/signin?registered=true');
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred');
+      setError(error instanceof Error ? error.message : 'Se produjo un error');
     } finally {
       setIsLoading(false);
     }
@@ -59,10 +59,10 @@ export default function SignUp() {
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-xl shadow-lg">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Create your account
+            Crea Tu Cuenta
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Join RAGster today
+            Únete a RAGster hoy
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -74,7 +74,7 @@ export default function SignUp() {
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="name" className="sr-only">
-                Full name
+                Nombre Completo
               </label>
               <input
                 id="name"
@@ -82,12 +82,12 @@ export default function SignUp() {
                 type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Full name"
+                placeholder="Nombre Completo"
               />
             </div>
             <div>
               <label htmlFor="email" className="sr-only">
-                Email address
+                Correo Electrónico
               </label>
               <input
                 id="email"
@@ -96,12 +96,12 @@ export default function SignUp() {
                 autoComplete="email"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                placeholder="Correo Electrónico"
               />
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
-                Password
+                Contraseña
               </label>
               <input
                 id="password"
@@ -110,12 +110,12 @@ export default function SignUp() {
                 autoComplete="new-password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
+                placeholder="Contraseña"
               />
             </div>
             <div>
               <label htmlFor="confirmPassword" className="sr-only">
-                Confirm password
+                Confirmar Contraseña
               </label>
               <input
                 id="confirmPassword"
@@ -124,7 +124,7 @@ export default function SignUp() {
                 autoComplete="new-password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Confirm password"
+                placeholder="Confirmar Contraseña"
               />
             </div>
           </div>
@@ -135,7 +135,7 @@ export default function SignUp() {
               disabled={isLoading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Creating account...' : 'Create account'}
+              {isLoading ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
           </div>
 
@@ -144,7 +144,7 @@ export default function SignUp() {
               href="/auth/signin"
               className="font-medium text-indigo-600 hover:text-indigo-500"
             >
-              Already have an account? Sign in
+              ¿Ya tienes una cuenta? Inicia sesión
             </Link>
           </div>
         </form>
