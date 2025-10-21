@@ -170,6 +170,28 @@ export default function SettingsPage() {
 
   // Guardar configuraciones de WABA
   const handleSaveWabaSettings = async () => {
+    // Validar campos requeridos
+    if (!wabaSettings.phoneNumberId || !wabaSettings.businessAccountId || !wabaSettings.accessToken) {
+      showNotification(
+        "error",
+        "Todos los campos son requeridos"
+      );
+      return;
+    }
+
+    // Validación adicional: eliminar espacios en blanco
+    if (
+      wabaSettings.phoneNumberId.trim() === "" ||
+      wabaSettings.businessAccountId.trim() === "" ||
+      wabaSettings.accessToken.trim() === ""
+    ) {
+      showNotification(
+        "error",
+        "Los campos no pueden estar vacíos"
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch("/api/settings", {
@@ -251,7 +273,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de número de teléfono
+                  ID de número de teléfono <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="text"
@@ -260,13 +282,14 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="123456789012345"
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de cuenta de WhatsApp Business
+                  ID de cuenta de WhatsApp Business <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="text"
@@ -275,13 +298,14 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="123456789"
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Token de acceso
+                  Token de acceso <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="password"
@@ -290,6 +314,7 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="EAABx..."
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>

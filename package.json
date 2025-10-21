@@ -28,7 +28,6 @@
     "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "formidable": "^3.5.2",
-    "fs": "^0.0.1-security",
     "fs-extra": "^11.3.0",
     "jszip": "^3.10.1",
     "langchain": "^0.3.30",
