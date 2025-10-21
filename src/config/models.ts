@@ -12,20 +12,18 @@ export interface ModelConfig {
 // Available chat models
 export const CHAT_MODELS: ModelConfig[] = [
   { id: "Saptiva Turbo", name: "Saptiva Turbo", provider: "saptiva" },
-  { id: "Saptiva Cortex", name: "Saptiva Cortex", provider: "saptiva" },
+  { id: "Saptiva Legacy", name: "Saptiva Legacy", provider: "saptiva" },
   { id: "Saptiva Ops", name: "Saptiva Ops", provider: "saptiva" },
-  { id: "DeepSeek R1 Lite", name: "DeepSeek R1 Lite", provider: "saptiva" },
-  { id: "LLAMA3.3 70B", name: "LLAMA3.3 70B", provider: "saptiva" },
+  { id: "Saptiva Cortex", name: "Saptiva Cortex", provider: "saptiva" },
 ];
 
 // Model names as constants
 export const MODEL_NAMES = {
   // Chat models
   CHAT_DEFAULT: "Saptiva Turbo",
-  CHAT_CORTEX: "Saptiva Cortex",
+  CHAT_LEGACY: "Saptiva Legacy",
   CHAT_OPS: "Saptiva Ops",
-  DEEPSEEK_R1_LITE: "DeepSeek R1 Lite",
-  LLAMA_70B: "LLAMA3.3 70B",
+  CHAT_CORTEX: "Saptiva Cortex",
 
   // Embedding model
   EMBEDDING: "Saptiva Embed",
