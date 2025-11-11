@@ -4,6 +4,13 @@ import { connectToDatabase } from "@/lib/mongodb/client";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import {
+  normalizeText,
+  extractHeader,
+  extractQueryTerms,
+  countTermMatches,
+} from "@/lib/retrieval/helpers";
+import { selectDiverseChunks, MMRCandidate } from "@/lib/retrieval/mmr";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
@@ -53,31 +60,34 @@ async function searchInWeaviate(queryText: string) {
   const collection = client.collections.get("DocumentChunk");
   const queryVector = await getCustomEmbedding(queryText);
 
-  const result = await collection.query.nearVector(queryVector, {
-    limit: 10, // Increased from 2 to 10 for better context coverage
-    returnMetadata: ['distance', 'certainty'], // Request similarity scores
+  // Use hybrid search with RRF fusion (semantic + BM25)
+  const result = await collection.query.hybrid(queryText, {
+    limit: 20, // Retrieve more candidates for fusion (conservative: 20)
+    alpha: 0.5, // Balance: 0 = pure BM25, 1 = pure vector, 0.5 = balanced
+    vector: queryVector, // Provide pre-computed embedding for semantic search
+    returnMetadata: ['score', 'distance'], // Get both RRF score and distance
   });
 
-  console.log("Resultados:", JSON.stringify(result, null, 2));
+  console.log("Hybrid search results:", JSON.stringify(result, null, 2));
 
-  // GUARDRAIL: Filter by similarity threshold
-  const SIMILARITY_THRESHOLD = 0.5; // Lowered from 0.65 to 0.5 for better recall
+  // GUARDRAIL: Filter by minimum score threshold
+  // Note: Hybrid search returns normalized RRF scores (0-1)
+  const SIMILARITY_THRESHOLD = 0.3; // Lower threshold for hybrid (RRF scores differ from pure vector)
   const filteredResults = result.objects.filter((obj: any) => {
-    // Try multiple ways to extract score from Weaviate response
+    // Hybrid search returns score in metadata
     let score = 0;
 
-    if (obj.metadata?.certainty) {
-      // Some Weaviate configs return certainty (0-1, higher is better)
+    if (obj.metadata?.score !== undefined) {
+      // Hybrid RRF score (0-1, higher is better)
+      score = obj.metadata.score;
+    } else if (obj.metadata?.certainty) {
       score = obj.metadata.certainty;
     } else if (obj.metadata?.distance !== undefined) {
-      // Others return distance (lower is better, needs inversion)
+      // Fallback to distance if score not available
       score = 1 - obj.metadata.distance;
-    } else if (obj.metadata?.score !== undefined) {
-      // Some return score directly
-      score = obj.metadata.score;
     }
 
-    console.log(`Chunk score: ${score.toFixed(3)} (threshold: ${SIMILARITY_THRESHOLD})`);
+    console.log(`Chunk RRF score: ${score.toFixed(3)} (threshold: ${SIMILARITY_THRESHOLD})`);
     return score >= SIMILARITY_THRESHOLD;
   });
 
@@ -87,7 +97,7 @@ async function searchInWeaviate(queryText: string) {
     console.log("⚠️ All chunks filtered out due to low scores - check if threshold is too high");
   }
 
-  return filteredResults as { properties: { text?: string } }[];
+  return filteredResults as { properties: { text?: string }; metadata?: any }[];
 }
 export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
@@ -198,66 +208,116 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // === RERANKER HÍBRIDO: Semántico + Léxico + Headers - Contaminación ===
-    const norm = (s: string) => (s || "")
-      .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[¿?¡!.,;:()"]/g, " ");
+    // === FUSION RERANKER: RRF + Header Boost + Lexical Overlap + Contamination Filter ===
+    // Normalize query and extract terms
+    const qNorm = normalizeText(query);
+    const qTerms = extractQueryTerms(qNorm);
 
-    const qWords = Array.from(new Set(
-      norm(query).split(/\s+/).filter(w => w.length > 3)
-    ));
+    console.log(`Query terms: [${qTerms.join(", ")}]`);
 
     // Frases de contaminación genérica (otros trámites no relacionados)
-    const genericNegs = ["cambio de domicilio", "71/cff", "77/cff", "actualización de actividades", "71 cff", "apertura de establecimiento", "cierre de establecimiento"];
+    const genericNegs = [
+      "cambio de domicilio",
+      "71/cff",
+      "77/cff",
+      "actualización de actividades",
+      "71 cff",
+      "apertura de establecimiento",
+      "cierre de establecimiento",
+    ];
 
-    const rankedChunks = response.map((ch: any) => {
+    // Step 1: Fusion reranking with header boost and lexical overlap
+    const fusedChunks = response.map((ch: any) => {
       const text = ch.properties?.text || "";
-      const t = norm(text);
+      const textNorm = normalizeText(text);
 
-      // 1) Score léxico por palabras de la query
-      let kw = 0;
-      qWords.forEach(w => {
-        if (t.includes(w)) kw += 1;
-      });
+      // 1) Get RRF score from Weaviate hybrid search
+      const rrfScore = ch.metadata?.score ?? 0;
 
-      // 2) Boost por "frases fuertes" detectadas del propio chunk (encabezados)
-      const headers = (text.match(/^#{2,3}\s.*$/gm) || [])
-        .map(h => norm(h.replace(/^#+\s*/, "")));
-      let boost = 0;
-      headers.forEach(h => {
-        qWords.forEach(w => {
-          if (h.includes(w)) boost += 1;
-        });
-      });
+      // 2) Semantic signal from distance (fallback)
+      const semantic = 1 - (ch.metadata?.distance ?? 0.5);
 
-      // 3) Penalización por términos genéricos NO mencionados en la query
-      let pen = 0;
-      genericNegs.forEach(neg => {
-        if (t.includes(neg) && !qWords.some(w => neg.includes(w) || w.includes(neg))) {
-          pen += 2;
+      // 3) Header boost: count query terms in chunk headers
+      const header = extractHeader(text);
+      const headerMatch = countTermMatches(qTerms, header);
+
+      // 4) Lexical overlap: count query terms in chunk text
+      const overlap = countTermMatches(qTerms, textNorm);
+
+      // 5) Contamination penalty: detect off-topic terms
+      let contaminationPenalty = 0;
+      genericNegs.forEach((neg) => {
+        if (
+          textNorm.includes(normalizeText(neg)) &&
+          !qTerms.some((w) => neg.includes(w) || w.includes(neg))
+        ) {
+          contaminationPenalty += 2;
         }
       });
 
-      // 4) Señal semántica (de Weaviate distance)
-      const sem = 1 - (ch.metadata?.distance ?? 0.5);
-
-      // Score final híbrido
-      const score = 0.4 * sem + 0.4 * kw + 0.3 * boost - 0.6 * pen;
+      // Combined fusion score
+      // Weights: 55% RRF, 30% semantic, 10% header, 5% overlap, minus contamination
+      const score =
+        0.55 * rrfScore +
+        0.3 * semantic +
+        0.1 * headerMatch +
+        0.05 * overlap -
+        0.6 * contaminationPenalty;
 
       return {
         ch,
         score,
         text,
-        debug: { sem: sem.toFixed(2), kw, boost, pen }
+        textNorm,
+        debug: {
+          rrf: rrfScore.toFixed(3),
+          sem: semantic.toFixed(3),
+          header: headerMatch,
+          overlap,
+          contamination: contaminationPenalty,
+        },
       };
     })
       .sort((a, b) => b.score - a.score)
-      .slice(0, 5); // Top 5 chunks
+      .slice(0, 15); // Keep top 15 for MMR diversity selection
 
-    console.log(`📊 Hybrid reranking: ${rankedChunks.map(r => `score=${r.score.toFixed(2)} (sem:${r.debug.sem} kw:${r.debug.kw} boost:${r.debug.boost} pen:${r.debug.pen})`).join(', ')}`);
+    console.log(
+      "Fused chunks (top 15):",
+      fusedChunks.map((c) => ({
+        score: c.score.toFixed(3),
+        debug: c.debug,
+      }))
+    );
 
-    // Combine top-5 chunks into context
+    // Step 2: MMR diversity selection (15 → 5 chunks)
+    const mmrCandidates: MMRCandidate[] = fusedChunks.map((item, index) => ({
+      id: `chunk-${index}`,
+      normalizedText: item.textNorm,
+      score: item.score,
+      originalData: item,
+    }));
+
+    const diverseChunks = selectDiverseChunks(
+      mmrCandidates,
+      5, // Select top 5 diverse chunks
+      0.7 // Lambda: 70% relevance, 30% diversity
+    );
+
+    console.log(`MMR selected ${diverseChunks.length} diverse chunks`);
+
+    // Extract the ranked chunks from MMR results
+    const rankedChunks = diverseChunks;
+
+    console.log(
+      `📊 Fusion + MMR reranking: ${rankedChunks
+        .map(
+          (r) =>
+            `score=${r.score.toFixed(2)} (rrf:${r.debug.rrf} sem:${r.debug.sem} header:${r.debug.header} overlap:${r.debug.overlap} contamination:${r.debug.contamination})`
+        )
+        .join(", ")}`
+    );
+
+    // Combine top-5 diverse chunks into context
     let text = "";
     if (rankedChunks.length > 0) {
       text = rankedChunks

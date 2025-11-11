@@ -2,6 +2,7 @@ import { Document } from "@langchain/core/documents";
 import JSZip from "jszip";
 import { EmbeddingService } from "../services/embeddingService";
 import { EventEmitter } from "events";
+import { chunkDocument, type DocType } from "../chunking/chunkingService";
 
 export type DocProcessingResult = {
   chunks: string[];
@@ -83,10 +84,30 @@ export async function processDocument(
     console.log(`Extraídos ${text.length} caracteres de ${file.name}`);
     progress.emit("progress", { step: "extracting", progress: 100 });
 
-    // Paso 2: Dividir texto en fragmentos
+    // Paso 2: Dividir texto en fragmentos usando nuevo servicio token-based
     progress.emit("progress", { step: "chunking", progress: 0 });
-    const chunks = splitIntoChunks(text);
-    console.log(`Dividido en ${chunks.length} fragmentos`);
+
+    // Determine document type
+    const fileType = file.name.split(".").pop()?.toLowerCase() || "";
+    let docType: DocType = "txt";
+    if (fileType === "pdf") docType = "pdf";
+    else if (fileType === "docx") docType = "docx";
+    else if (fileType === "md" || fileType === "markdown") docType = "md";
+
+    // Use new adaptive token-based chunking
+    const langchainDocs = await chunkDocument(text, {
+      sourceId: file.name,
+      namespace: "client-upload", // Client-side uploads namespace
+      docType,
+    });
+
+    const chunks = langchainDocs.map(doc => doc.pageContent);
+    const avgTokens = langchainDocs.reduce((sum, doc) =>
+      sum + (doc.metadata.chunkSizeTokens as number || 0), 0) / langchainDocs.length;
+    console.log(
+      `Dividido en ${chunks.length} fragmentos token-based ` +
+      `(avg ${Math.round(avgTokens)} tokens per chunk, type: ${docType})`
+    );
     progress.emit("progress", { step: "chunking", progress: 100 });
 
     // Paso 3: Generar embeddings con control de errores y reintentos
@@ -116,25 +137,21 @@ export async function processDocument(
               retries++;
               if (retries > maxRetries) {
                 console.error(
-                  `No se pudo generar el embedding después de ${maxRetries} intentos`,
+                  `No se pudo generar el embedding después de ${maxRetries} intentos para el fragmento ${i + index}`,
                   error,
                 );
-                // Embedding de respaldo aleatorio
-                const dimensions = parseInt(
-                  process.env.PINECONE_DIMENSIONS || "1024",
+                // CRITICAL: Do not generate random embeddings - they pollute the vector space
+                // Instead, throw the error to fail the chunk properly
+                throw new Error(
+                  `Failed to generate embedding after ${maxRetries} retries: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
                 );
-                const randomEmbedding = Array(dimensions)
-                  .fill(0)
-                  .map(() => Math.random() * 2 - 1);
-                const magnitude = Math.sqrt(
-                  randomEmbedding.reduce((sum, val) => sum + val * val, 0),
-                );
-                return randomEmbedding.map((val) => val / magnitude);
               }
               console.warn(
                 `Reintento ${retries}/${maxRetries} para el fragmento ${
                   i + index
-                }`,
+                } - Esperando 1 segundo...`,
               );
               await new Promise((resolve) => setTimeout(resolve, 1000));
             }
@@ -368,87 +385,3 @@ export async function generateEmbeddings(
   }
 }
 
-/**
- * Divide texto en fragmentos con solapamiento
- */
-function splitIntoChunks(
-  text: string,
-  chunkSize = 1000,
-  chunkOverlap = 200,
-): string[] {
-  if (!text || text.length === 0) {
-    return [];
-  }
-
-  const chunks: string[] = [];
-  const paragraphs = text.split(/\n\s*\n/);
-
-  if (paragraphs.length > 1 && paragraphs.some((p) => p.length > 200)) {
-    let currentChunk = "";
-    let chunkStartIndex = 0;
-
-    for (let i = 0; i < paragraphs.length; i++) {
-      const paragraph = paragraphs[i].trim();
-      if (paragraph.length === 0) continue;
-
-      if (
-        currentChunk.length + paragraph.length > chunkSize &&
-        currentChunk.length > 0
-      ) {
-        chunks.push(currentChunk);
-        const prevChunkText = text.substring(
-          chunkStartIndex,
-          chunkStartIndex + currentChunk.length,
-        );
-        const overlapStartIndex = Math.max(
-          0,
-          prevChunkText.length - chunkOverlap,
-        );
-        const overlapText = prevChunkText.substring(overlapStartIndex);
-        const sentenceBoundary = overlapText.search(/[.!?]\s+[A-Z]/);
-
-        let overlapStart = chunkStartIndex + overlapStartIndex;
-        if (sentenceBoundary !== -1) {
-          overlapStart =
-            chunkStartIndex + overlapStartIndex + sentenceBoundary + 2;
-        }
-
-        chunkStartIndex = overlapStart;
-        currentChunk = text.substring(
-          overlapStart,
-          chunkStartIndex + paragraph.length,
-        );
-      } else {
-        currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
-      }
-    }
-
-    if (currentChunk.trim().length > 0) {
-      chunks.push(currentChunk);
-    }
-  } else {
-    let index = 0;
-    while (index < text.length) {
-      let chunk = text.substring(index, index + chunkSize);
-      if (index + chunkSize < text.length) {
-        const sentenceMatch = chunk.match(/[.!?](\s+|$)/g);
-        if (sentenceMatch && sentenceMatch.length > 0) {
-          const lastMatch = chunk.lastIndexOf(
-            sentenceMatch[sentenceMatch.length - 1],
-          );
-          if (lastMatch > chunkSize / 2) {
-            chunk = chunk.substring(
-              0,
-              lastMatch + sentenceMatch[sentenceMatch.length - 1].length,
-            );
-          }
-        }
-      }
-      chunks.push(chunk);
-      const moveForward = Math.max(1, chunk.length - chunkOverlap);
-      index += moveForward;
-    }
-  }
-
-  return chunks;
-}

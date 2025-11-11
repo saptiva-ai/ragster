@@ -4,6 +4,31 @@ SAPTIVA_API_KEY=
 SAPTIVA_API_BASE_URL=https://api.saptiva.com
 EMBEDDING_API_URL=https://api.saptiva.com/api/embed
 
+# ===== Configuración de Chunking (Token-based, Adaptive) =====
+# Configuración adaptativa por tipo de documento usando Qwen3 Embedding 8B (32k contexto)
+# Valores optimizados por tipo para mejor granularidad y retrieval
+
+# Tamaños de chunk por tipo de documento (en tokens)
+CHUNK_SIZE_TOKENS_PDF=300   # PDFs: más densos, tablas/datos (default: 300)
+CHUNK_SIZE_TOKENS_DOCX=350  # DOCX: documentos estructurados (default: 350)
+CHUNK_SIZE_TOKENS_MD=450    # Markdown: prosa narrativa (default: 450)
+CHUNK_SIZE_TOKENS_TXT=400   # TXT: texto genérico (default: 400)
+
+# Solapamiento por tipo de documento (en tokens)
+CHUNK_OVERLAP_TOKENS_PDF=40   # PDF: menos overlap (datos más discretos)
+CHUNK_OVERLAP_TOKENS_DOCX=50  # DOCX: overlap moderado
+CHUNK_OVERLAP_TOKENS_MD=60    # Markdown: más overlap (narrativa)
+CHUNK_OVERLAP_TOKENS_TXT=60   # TXT: overlap estándar
+
+# Mínimo de tokens válido (global)
+MIN_CHUNK_TOKENS=40
+
+# ===== Configuración de Embedding Queue (Paralelo con Backoff) =====
+# Control de concurrencia y reintentos para embeddings
+EMBED_MAX_PARALLEL=5          # Máximo requests paralelos a Saptiva API (default: 5)
+EMBED_BACKOFF_BASE_MS=600     # Base delay para backoff exponencial en ms (default: 600)
+EMBED_BACKOFF_MAX_MS=6000     # Máximo delay para backoff en ms (default: 6000)
+
 # ===== REQUERIDO: Base de Datos MongoDB =====
 # Local: mongodb://localhost:27017 (instala MongoDB)
 # Nube: Obtén un cluster gratuito desde https://cloud.mongodb.com/

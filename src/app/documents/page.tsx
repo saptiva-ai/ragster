@@ -6,8 +6,6 @@ import {
   TrashIcon,
   ArrowPathIcon,
   DocumentIcon,
-  GlobeAltIcon,
-  PencilIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import UploadDocumentModal from "@/components/UploadDocumentModal";
@@ -34,7 +32,6 @@ export default function DocumentsPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showOptions, setShowOptions] = useState(false);
 
   // Cargar la lista de fuentes
   useEffect(() => {
@@ -171,64 +168,15 @@ export default function DocumentsPage() {
     }
   };
 
-  // Botón para seleccionar el tipo de fuente a añadir
+  // Botón simple para subir documento
   const AddSourceButton = () => (
-    <div className="relative">
-      {showOptions && (
-        <div
-          className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
-          onBlur={() => setShowOptions(false)}
-        >
-          <div className="py-1" role="menu" aria-orientation="vertical">
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("document");
-                setShowOptions(false);
-              }}
-            >
-              <DocumentIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Subir documento
-            </button>
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("text");
-                setShowOptions(false);
-              }}
-            >
-              <PencilIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Añadir texto
-            </button>
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("url");
-                setShowOptions(false);
-              }}
-            >
-              <GlobeAltIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Añadir enlace web
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    <button
+      onClick={() => setActiveModal("document")}
+      className="px-4 py-2 bg-[#01f6d2] text-black rounded-lg hover:bg-teal-500"
+    >
+      Subir documento
+    </button>
   );
-
-  // Función para cerrar el menú al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showOptions) {
-        setShowOptions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showOptions]);
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -349,8 +297,8 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sources.map((source) => (
-                  <tr key={1} className="hover:bg-gray-50">
+                {sources.map((source, index) => (
+                  <tr key={source.id || `source-${index}`} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
                         <div

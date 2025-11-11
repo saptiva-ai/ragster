@@ -6,6 +6,7 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import { embedWithQueue } from "@/lib/chunking/embeddingQueue";
 
 interface Chunk {
   text: string;
@@ -34,8 +35,20 @@ async function ensureWeaviateClassExists(className: string) {
     await client.collections.create({
       name: className,
       vectorizers: [],
+      // Enable BM25 for hybrid search (RRF)
+      invertedIndexConfig: {
+        indexNullState: true,
+        indexPropertyLength: true,
+        indexTimestamps: true,
+      },
       properties: [
-        { name: "text", dataType: "text" },
+        // Enable BM25 indexing on text field for hybrid search
+        {
+          name: "text",
+          dataType: "text",
+          indexFilterable: true,
+          indexSearchable: true,
+        },
         { name: "sourceName", dataType: "text" },
         { name: "sourceType", dataType: "text" },
         { name: "sourceSize", dataType: "text" },
@@ -45,6 +58,13 @@ async function ensureWeaviateClassExists(className: string) {
         { name: "sourceNamespace", dataType: "text" },
         { name: "prevChunkIndex", dataType: "int" },
         { name: "nextChunkIndex", dataType: "int" },
+        // New token-based chunking metadata
+        { name: "pageNumber", dataType: "int" },        // Page number for PDFs
+        { name: "sectionTitle", dataType: "text" },     // Section/heading title
+        { name: "docType", dataType: "text" },          // pdf, docx, txt, md
+        { name: "contentHash", dataType: "text" },      // Content-based hash for deduplication
+        { name: "chunkSizeTokens", dataType: "int" },   // Actual token count
+        { name: "timestamp", dataType: "text" },        // ISO timestamp of chunk creation
       ],
     });
     // Esperar a que la colección esté disponible (opcional: reintentos)
@@ -60,6 +80,7 @@ async function extractTextFromFile(
   file: File
 ): Promise<string> {
   const mime = file.type;
+  const filename = file.name.toLowerCase();
 
   if (mime === "application/pdf") {
     // Convertir ArrayBuffer a Blob antes de pasar a PDFLoader
@@ -82,11 +103,18 @@ async function extractTextFromFile(
     return result.value || "";
   }
 
-  if (mime === "text/plain") {
+  // Handle text files (including .md files that may be detected as octet-stream)
+  if (mime === "text/plain" || mime === "text/markdown" ||
+      filename.endsWith(".txt") || filename.endsWith(".md")) {
     return new TextDecoder("utf-8").decode(buffer);
   }
 
-  throw new Error(`Tipo de archivo no soportado: ${mime}`);
+  // Handle octet-stream for text-based files by extension
+  if (mime === "application/octet-stream" && (filename.endsWith(".md") || filename.endsWith(".txt"))) {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+
+  throw new Error(`Tipo de archivo no soportado: ${mime} (${file.name})`);
 }
 
 async function getCustomEmbedding(text: string): Promise<number[]> {
@@ -148,10 +176,34 @@ async function insertDataToWeaviate(
   const { db } = await connectToDatabase();
   const fileColection = db.collection("file");
 
-  const enrichedChunks = await Promise.all(
-    chunks.map(async (item, index) => {
-      return {
-        ...item,
+  console.log(`Starting embedding generation for ${chunks.length} chunks using adaptive queue...`);
+
+  // Prepare items for queue (id + text)
+  const queueItems = chunks.map((item) => ({
+    id: item.id,
+    text: item.text,
+  }));
+
+  // Generate embeddings with adaptive parallel queue + backoff
+  const embedded = await embedWithQueue(queueItems, getCustomEmbedding, {
+    onProgress: (done, total) => {
+      if (done % 10 === 0 || done === total) {
+        console.log(`Embedding progress: ${done}/${total} chunks`);
+      }
+    },
+    retries: 5,
+  });
+
+  console.log(`Generated ${embedded.length} embeddings successfully`);
+
+  // Build docs for Weaviate insertion
+  const docsToInsert = embedded.map(({ id, vector }) => {
+    const chunk = chunks.find(c => c.id === id)!;
+    const index = chunks.indexOf(chunk);
+
+    return {
+      properties: {
+        text: chunk.text,
         chunkIndex: index + 1,
         totalChunks: chunks.length,
         prevChunkIndex: index > 0 ? index : null,
@@ -161,71 +213,36 @@ async function insertDataToWeaviate(
         sourceSize: file.size.toString(),
         uploadDate: new Date().toISOString(),
         sourceNamespace: formNamespace,
-      };
-    })
-  );
-
-  // Changed from Promise.all (parallel) to sequential processing
-  // This prevents rate limiting by SAPTIVA API when processing multiple chunks
-  const docsToInsert = [];
-
-  for (let i = 0; i < enrichedChunks.length; i++) {
-    const item = enrichedChunks[i];
-
-    // Add 500ms delay between requests to avoid overwhelming the API
-    // Skip delay for first chunk to start immediately
-    if (i > 0) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    // Generate embedding for this chunk
-    const embedding = await getCustomEmbedding(item.text);
-
-    // Build document object with properties and vectors
-    docsToInsert.push({
-      properties: {
-        text: item.text,
-        chunkIndex: item.chunkIndex,
-        totalChunks: item.totalChunks,
-        prevChunkIndex: item.prevChunkIndex,
-        nextChunkIndex: item.nextChunkIndex,
-        sourceName: item.sourceName,
-        sourceType: item.sourceType,
-        sourceSize: item.sourceSize,
-        uploadDate: item.uploadDate,
-        sourceNamespace: item.sourceNamespace,
       },
-      vectors: embedding,
-    });
-  }
+      vectors: vector,
+    };
+  });
 
-  console.log(
-    "Docs a insertar en Weaviate:",
-    JSON.stringify(docsToInsert, null, 2)
-  );
+  console.log(`Inserting ${docsToInsert.length} chunks into Weaviate...`);
 
   try {
-    const resultsss = await client.collections
+    const results = await client.collections
       .get("DocumentChunk")
       .data.insertMany(docsToInsert);
-    console.log(
-      "Resultado de la inserción en Weaviate:",
-      JSON.stringify(resultsss, null, 2)
-    );
-    console.log("Insert exitoso en Weaviate. Total:", docsToInsert.length);
+    console.log("Weaviate insertion successful. Total:", docsToInsert.length);
+    console.log("Results:", JSON.stringify(results, null, 2));
   } catch (error) {
-    console.error("Error al insertar en Weaviate:", error);
+    console.error("Error inserting into Weaviate:", error);
     throw error;
   }
 
   await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
 }
 
-async function processDocument(file: File) {
+async function processDocument(file: File, namespace: string) {
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Extract text using the reliable method
   const text = await extractTextFromFile(buffer.buffer, file);
 
-  // Divide el texto en chunks usando RecursiveCharacterTextSplitter
+  console.log(`Extracted text length for ${file.name}: ${text.length} characters`);
+
+  // Use simple character-based chunking (old working approach)
   const textSplitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,
     chunkOverlap: 200,
@@ -239,7 +256,7 @@ async function processDocument(file: File) {
   }));
 
   console.log(
-    `Archivo ${file.name} procesado. Total de chunks: ${chunks.length}`
+    `File ${file.name} processed. Total chunks: ${chunks.length}`
   );
 
   return {
@@ -280,7 +297,7 @@ export async function POST(req: NextRequest) {
 
     for (const file of files) {
       try {
-        const { chunks: rawChunks, filename } = await processDocument(file);
+        const { chunks: rawChunks, filename } = await processDocument(file, formNamespace);
         const chunks = await rawChunks.filter(
           (chunk): chunk is Chunk => chunk !== null
         );

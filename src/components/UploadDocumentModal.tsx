@@ -29,14 +29,13 @@ export default function UploadDocumentModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Resetear estado al cerrar
+  // Resetear estado al abrir el modal
   useEffect(() => {
-    if (!isOpen) {
-      setTimeout(() => {
-        setFiles([]);
-        setUploadResult(null);
-        setIsUploading(false);
-      }, 300);
+    if (isOpen) {
+      // Reset state when modal opens to ensure clean slate
+      setFiles([]);
+      setUploadResult(null);
+      setIsUploading(false);
     }
   }, [isOpen]);
 
@@ -126,7 +125,7 @@ export default function UploadDocumentModal({
       >
         {/* Cabecera */}
         <div className="flex justify-between items-center p-5 border-b">
-          <h3 className="text-xl font-semibold text-[#01f6d2]">Subir documento</h3>
+          <h3 className="text-xl font-semibold text-[#01f6d2]">Subir documento(s)</h3>
           {!isUploading && (
             <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
               <XMarkIcon className="h-6 w-6" />
@@ -150,7 +149,7 @@ export default function UploadDocumentModal({
                 )}
               </div>
               <h3 className={`mt-2 text-lg font-medium ${uploadResult.success ? "text-green-900" : "text-red-900"}`}>
-                {uploadResult.success ? "Documento procesado" : "Error al procesar documento"}
+                {uploadResult.success ? (files.length === 1 ? "Documento procesado" : "Documentos procesados") : (files.length === 1 ? "Error al procesar documento" : "Error al procesar documentos")}
               </h3>
               <p className="mt-1 text-sm text-black">{uploadResult.message}</p>
             </div>
@@ -168,7 +167,7 @@ export default function UploadDocumentModal({
                           htmlFor="file-upload"
                           className="relative cursor-pointer font-medium text-[#01f6d2] hover:text-teal-400"
                         >
-                          <span>Selecciona un archivo</span>
+                          <span>Selecciona archivo(s)</span>
                           <input
                             ref={fileInputRef}
                             id="file-upload"
@@ -182,6 +181,7 @@ export default function UploadDocumentModal({
                             }}
                             accept=".pdf,.docx,.txt,.md"
                             disabled={isUploading}
+                            multiple
                           />
                         </label>
                       </div>
@@ -190,9 +190,18 @@ export default function UploadDocumentModal({
                   </div>
                 </div>
                 {files.length > 0 && (
-                  <div className="mt-2 flex items-center">
-                    <DocumentTextIcon className="h-5 w-5 text-[#01f6d2]" />
-                    <span className="ml-1 text-sm text-black">{files[0].name}</span>
+                  <div className="mt-2">
+                    <p className="text-sm font-medium text-black mb-1">
+                      {files.length} {files.length === 1 ? "archivo seleccionado" : "archivos seleccionados"}:
+                    </p>
+                    <div className="space-y-1">
+                      {files.map((file, index) => (
+                        <div key={index} className="flex items-center">
+                          <DocumentTextIcon className="h-5 w-5 text-[#01f6d2] flex-shrink-0" />
+                          <span className="ml-1 text-sm text-black truncate">{file.name}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -228,7 +237,7 @@ export default function UploadDocumentModal({
                 }`}
                 disabled={files.length === 0 || isUploading}
               >
-                {isUploading ? "Subiendo..." : "Subir documento"}
+                {isUploading ? "Subiendo..." : (files.length === 1 ? "Subir documento" : "Subir documentos")}
               </button>
             </>
           )}
