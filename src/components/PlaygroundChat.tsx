@@ -3,6 +3,9 @@
 import {useState, useRef, useEffect} from "react";
 import {v4 as uuidv4} from "uuid";
 import {DEFAULT_MODEL_SETTINGS} from "@/config/models";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 
 type Source = {
   name: string;
@@ -294,6 +297,10 @@ export default function PlaygroundChat() {
     setInput(e.target.value || "");
   };
 
+  const handleClearQueue = () => {
+    setMessageQueue([]);
+  };
+
   /*const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setNamespace(e.target.value || "");
   };*/
@@ -366,8 +373,13 @@ export default function PlaygroundChat() {
                       </span>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap mb-1">
-                      {message.content}
+                    <div className="prose prose-sm max-w-none mb-1">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeSanitize]}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     </div>
                   )}
 
@@ -491,6 +503,22 @@ export default function PlaygroundChat() {
 
       {/* Campo de entrada para nuevas preguntas */}
       <div className="mt-4 relative">
+        {/* Queue indicator badge with clear button */}
+        {messageQueue.length > 0 && (
+          <div className="mb-2 flex items-center gap-2">
+            <div className="text-teal-800 px-2 py-1 text-xs font-medium">
+              {messageQueue.length} en cola
+            </div>
+            <button
+              type="button"
+              onClick={handleClearQueue}
+              className="text-red-700 hover:text-red-800 px-2 py-1 text-xs font-medium transition-colors"
+              title="Limpiar cola"
+            >
+              Limpiar
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="relative">
           <input
             type="text"
@@ -506,12 +534,6 @@ export default function PlaygroundChat() {
               }
             }}
           />
-          {/* Queue indicator badge */}
-          {messageQueue.length > 0 && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-medium">
-              {messageQueue.length} en cola
-            </div>
-          )}
           <button
             type="submit"
             className="absolute right-2.5 bottom-2.5 px-4 py-2 text-black bg-[#01f6d2] hover:bg-teal-400 rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed"

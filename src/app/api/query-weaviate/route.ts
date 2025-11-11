@@ -55,10 +55,39 @@ async function searchInWeaviate(queryText: string) {
 
   const result = await collection.query.nearVector(queryVector, {
     limit: 10, // Increased from 2 to 10 for better context coverage
+    returnMetadata: ['distance', 'certainty'], // Request similarity scores
   });
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
-  return result.objects as { properties: { text?: string } }[];
+
+  // GUARDRAIL: Filter by similarity threshold
+  const SIMILARITY_THRESHOLD = 0.5; // Lowered from 0.65 to 0.5 for better recall
+  const filteredResults = result.objects.filter((obj: any) => {
+    // Try multiple ways to extract score from Weaviate response
+    let score = 0;
+
+    if (obj.metadata?.certainty) {
+      // Some Weaviate configs return certainty (0-1, higher is better)
+      score = obj.metadata.certainty;
+    } else if (obj.metadata?.distance !== undefined) {
+      // Others return distance (lower is better, needs inversion)
+      score = 1 - obj.metadata.distance;
+    } else if (obj.metadata?.score !== undefined) {
+      // Some return score directly
+      score = obj.metadata.score;
+    }
+
+    console.log(`Chunk score: ${score.toFixed(3)} (threshold: ${SIMILARITY_THRESHOLD})`);
+    return score >= SIMILARITY_THRESHOLD;
+  });
+
+  console.log(`✅ Filtered results: ${filteredResults.length}/${result.objects.length} chunks passed threshold (≥${SIMILARITY_THRESHOLD})`);
+
+  if (filteredResults.length === 0 && result.objects.length > 0) {
+    console.log("⚠️ All chunks filtered out due to low scores - check if threshold is too high");
+  }
+
+  return filteredResults as { properties: { text?: string } }[];
 }
 export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
@@ -156,43 +185,118 @@ export async function POST(req: NextRequest) {
 
     console.log("Response:", JSON.stringify(response, null, 2));
 
-    // Combine ALL retrieved chunks into context
+    // GUARDRAIL: Check if we have relevant results
+    if (!response || response.length === 0) {
+      console.log("⚠️ No relevant documents found - returning 'no info' message");
+      return NextResponse.json({
+        success: true,
+        query: query,
+        matches: [],
+        answer: "Disculpa, no tengo datos suficientes para responder tu pregunta en estos momentos.",
+        modelId: modelId,
+        provider: "saptiva",
+      });
+    }
+
+    // === RERANKER HÍBRIDO: Semántico + Léxico + Headers - Contaminación ===
+    const norm = (s: string) => (s || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[¿?¡!.,;:()"]/g, " ");
+
+    const qWords = Array.from(new Set(
+      norm(query).split(/\s+/).filter(w => w.length > 3)
+    ));
+
+    // Frases de contaminación genérica (otros trámites no relacionados)
+    const genericNegs = ["cambio de domicilio", "71/cff", "77/cff", "actualización de actividades", "71 cff", "apertura de establecimiento", "cierre de establecimiento"];
+
+    const rankedChunks = response.map((ch: any) => {
+      const text = ch.properties?.text || "";
+      const t = norm(text);
+
+      // 1) Score léxico por palabras de la query
+      let kw = 0;
+      qWords.forEach(w => {
+        if (t.includes(w)) kw += 1;
+      });
+
+      // 2) Boost por "frases fuertes" detectadas del propio chunk (encabezados)
+      const headers = (text.match(/^#{2,3}\s.*$/gm) || [])
+        .map(h => norm(h.replace(/^#+\s*/, "")));
+      let boost = 0;
+      headers.forEach(h => {
+        qWords.forEach(w => {
+          if (h.includes(w)) boost += 1;
+        });
+      });
+
+      // 3) Penalización por términos genéricos NO mencionados en la query
+      let pen = 0;
+      genericNegs.forEach(neg => {
+        if (t.includes(neg) && !qWords.some(w => neg.includes(w) || w.includes(neg))) {
+          pen += 2;
+        }
+      });
+
+      // 4) Señal semántica (de Weaviate distance)
+      const sem = 1 - (ch.metadata?.distance ?? 0.5);
+
+      // Score final híbrido
+      const score = 0.4 * sem + 0.4 * kw + 0.3 * boost - 0.6 * pen;
+
+      return {
+        ch,
+        score,
+        text,
+        debug: { sem: sem.toFixed(2), kw, boost, pen }
+      };
+    })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5); // Top 5 chunks
+
+    console.log(`📊 Hybrid reranking: ${rankedChunks.map(r => `score=${r.score.toFixed(2)} (sem:${r.debug.sem} kw:${r.debug.kw} boost:${r.debug.boost} pen:${r.debug.pen})`).join(', ')}`);
+
+    // Combine top-5 chunks into context
     let text = "";
-    if (response.length > 0) {
-      text = response
-        .map((chunk, index) => {
-          const chunkText = typeof chunk.properties.text === "string"
-            ? chunk.properties.text
-            : "";
-          return `[Sección ${index + 1}]:\n${chunkText}`;
+    if (rankedChunks.length > 0) {
+      text = rankedChunks
+        .map((item, index) => {
+          return `[Sección ${index + 1}]:\n${item.text}`;
         })
         .join("\n\n---\n\n");
     }
 
     const prompt = `
-      Contexto General:
-      ${systemPrompt}
+      === REGLAS ABSOLUTAS (NO NEGOCIABLES) ===
+
+      1. RESPONDE EXCLUSIVAMENTE con información de las secciones de documentos proporcionadas abajo.
+      2. ESTÁ PROHIBIDO usar conocimiento externo, experiencia previa, o información general.
+      3. Si una información NO aparece textualmente en las secciones, responde: "Disculpa, no tengo datos suficientes para responder esa pregunta en estos momentos."
+      4. NUNCA inventes: URLs, pasos, requisitos, nombres de trámites, o cualquier dato.
+      5. Si hay información parcial, di SOLO lo que está en las secciones y aclara qué falta.
 
       === INFORMACIÓN RELEVANTE DE LOS DOCUMENTOS ===
       ${text}
 
-      === INSTRUCCIONES CRÍTICAS ===
+      === FORMATO DE RESPUESTA REQUERIDO ===
 
-      1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
-      2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
-      3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
-      4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
-      5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
-      6. Lenguaje claro y profesional.
-      7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
-      8. Responde siempre en español.
-      9. No incluyas etiquetas como <think> o </think>.
-      10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
+      - Usa SOLO la información de arriba
+      - Cita los pasos y requisitos EXACTAMENTE como aparecen
+      - Si mencionas una URL, portal, correo o trámite, debe estar en las secciones de arriba
+      - Si algo no está en las secciones, NO lo menciones
+      - Lenguaje claro y profesional
+      - No incluyas etiquetas como <think> o </think>
 
-      Historial de conversación: "${history}"
-      Última pregunta enviada: "${pregunta}"
-      ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
-      Mensaje actual del usuario: "${query}"`;
+      === CONTEXTO DE CONVERSACIÓN ===
+      Historial: "${history}"
+      ${pregunta ? `Pregunta anterior: "${pregunta}"` : ""}
+      ${contactName && contactName !== "Chat Interno" ? `Contacto: "${contactName}"` : ""}
+
+      === PREGUNTA ACTUAL ===
+      ${query}
+
+      === TU RESPUESTA (SOLO BASADA EN LAS SECCIONES DE ARRIBA) ===`;
 
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(
