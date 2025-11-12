@@ -6,6 +6,8 @@ import {
   TrashIcon,
   ArrowPathIcon,
   DocumentIcon,
+  GlobeAltIcon,
+  PencilIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import UploadDocumentModal from "@/components/UploadDocumentModal";

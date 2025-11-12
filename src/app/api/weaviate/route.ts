@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
+
+const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
+
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// Preserve Saptiva embedding functionality for potential future use
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
 
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
 const saptivaApiKey = process.env.SAPTIVA_API_KEY!;
 
@@ -31,6 +35,7 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 
   return response.data.embeddings;
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export async function GET() {
   const client: WeaviateClient = await weaviate.connectToWeaviateCloud(

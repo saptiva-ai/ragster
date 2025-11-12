@@ -47,8 +47,11 @@ export async function embedWithQueue(
           done++;
           opts.onProgress?.(done, total);
           return;
-        } catch (err: any) {
-          if (attempt >= retries) throw err;
+        } catch (err: unknown) {
+          if (attempt >= retries) {
+            const error = err instanceof Error ? err : new Error(String(err));
+            throw error;
+          }
           await backoff(attempt);
         }
       }

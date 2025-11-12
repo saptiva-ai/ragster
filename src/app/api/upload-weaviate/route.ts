@@ -36,7 +36,7 @@ async function ensureWeaviateClassExists(className: string) {
       name: className,
       vectorizers: [],
       // Enable BM25 for hybrid search (RRF)
-      invertedIndexConfig: {
+      invertedIndex: {
         indexNullState: true,
         indexPropertyLength: true,
         indexTimestamps: true,
@@ -234,7 +234,7 @@ async function insertDataToWeaviate(
   await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
 }
 
-async function processDocument(file: File, namespace: string) {
+async function processDocument(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   // Extract text using the reliable method
@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
 
     for (const file of files) {
       try {
-        const { chunks: rawChunks, filename } = await processDocument(file, formNamespace);
+        const { chunks: rawChunks, filename } = await processDocument(file);
         const chunks = await rawChunks.filter(
           (chunk): chunk is Chunk => chunk !== null
         );

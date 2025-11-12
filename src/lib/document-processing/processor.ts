@@ -87,8 +87,7 @@ export async function processDocument(
     // Paso 2: Dividir texto en fragmentos usando nuevo servicio token-based
     progress.emit("progress", { step: "chunking", progress: 0 });
 
-    // Determine document type
-    const fileType = file.name.split(".").pop()?.toLowerCase() || "";
+    // Determine document type (fileType already declared above)
     let docType: DocType = "txt";
     if (fileType === "pdf") docType = "pdf";
     else if (fileType === "docx") docType = "docx";

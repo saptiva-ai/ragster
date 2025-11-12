@@ -13,7 +13,7 @@
 
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { AutoTokenizer } from "@xenova/transformers";
+import { AutoTokenizer, PreTrainedTokenizer } from "@xenova/transformers";
 import crypto from "crypto";
 
 import { CHUNK_SIZES, OVERLAPS, MIN_TOKENS, DEFAULTS, type DocType } from "./config";
@@ -30,7 +30,7 @@ export interface ChunkingOptions {
   pageSpans?: PageSpan[]; // optional, for PDFs with offsets
 }
 
-let tokenizerPromise: Promise<any> | null = null;
+let tokenizerPromise: Promise<PreTrainedTokenizer> | null = null;
 
 async function getTokenizer() {
   if (!tokenizerPromise) {

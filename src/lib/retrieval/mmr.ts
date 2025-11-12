@@ -8,7 +8,7 @@ import { jaccardSimilarity } from "./helpers";
 /**
  * Candidate chunk for MMR selection
  */
-export interface MMRCandidate {
+export interface MMRCandidate<T = unknown> {
   /** Unique identifier for the chunk */
   id: string;
   /** Chunk text content (should be normalized for comparison) */
@@ -16,7 +16,7 @@ export interface MMRCandidate {
   /** Relevance score from fusion reranking */
   score: number;
   /** Original chunk data to return */
-  originalData: any;
+  originalData: T;
 }
 
 /**
@@ -38,11 +38,11 @@ export interface MMRCandidate {
  *                 0.7 = 70% relevance, 30% diversity (recommended)
  * @returns Selected diverse chunks with their original data
  */
-export function selectDiverseChunks(
-  candidates: MMRCandidate[],
+export function selectDiverseChunks<T = unknown>(
+  candidates: MMRCandidate<T>[],
   topK: number = 5,
   lambda: number = 0.7
-): any[] {
+): T[] {
   if (candidates.length === 0) {
     return [];
   }
@@ -50,7 +50,7 @@ export function selectDiverseChunks(
   // Ensure we don't try to select more than available
   const n = Math.min(topK, candidates.length);
 
-  const picked: MMRCandidate[] = [];
+  const picked: MMRCandidate<T>[] = [];
   const pool = [...candidates]; // Clone to avoid mutating input
 
   while (picked.length < n && pool.length > 0) {
@@ -97,16 +97,16 @@ export function selectDiverseChunks(
  * @param idField - Name of the field containing the unique ID
  * @returns Array of MMRCandidate objects
  */
-export function prepareCandidates(
-  chunks: any[],
+export function prepareCandidates<T = unknown>(
+  chunks: T[],
   normalizedTextField: string = "normalizedText",
   scoreField: string = "score",
   idField: string = "id"
-): MMRCandidate[] {
+): MMRCandidate<T>[] {
   return chunks.map((chunk, index) => ({
-    id: chunk[idField] || `chunk-${index}`,
-    normalizedText: chunk[normalizedTextField] || "",
-    score: chunk[scoreField] || 0,
+    id: (chunk as Record<string, unknown>)[idField] as string || `chunk-${index}`,
+    normalizedText: (chunk as Record<string, unknown>)[normalizedTextField] as string || "",
+    score: (chunk as Record<string, unknown>)[scoreField] as number || 0,
     originalData: chunk,
   }));
 }

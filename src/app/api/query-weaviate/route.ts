@@ -12,6 +12,23 @@ import {
 } from "@/lib/retrieval/helpers";
 import { selectDiverseChunks, MMRCandidate } from "@/lib/retrieval/mmr";
 
+// Type definition for Weaviate query results
+interface WeaviateQueryObject {
+  properties: {
+    text?: string;
+    sourceName?: string;
+    sourceType?: string;
+    chunkIndex?: number;
+    [key: string]: unknown;
+  };
+  metadata?: {
+    score?: number;
+    certainty?: number;
+    distance?: number;
+    [key: string]: unknown;
+  };
+}
+
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
 const saptivaApiKey = process.env.SAPTIVA_API_KEY!;
@@ -73,7 +90,7 @@ async function searchInWeaviate(queryText: string) {
   // GUARDRAIL: Filter by minimum score threshold
   // Note: Hybrid search returns normalized RRF scores (0-1)
   const SIMILARITY_THRESHOLD = 0.3; // Lower threshold for hybrid (RRF scores differ from pure vector)
-  const filteredResults = result.objects.filter((obj: any) => {
+  const filteredResults = result.objects.filter((obj: WeaviateQueryObject) => {
     // Hybrid search returns score in metadata
     let score = 0;
 
@@ -97,7 +114,7 @@ async function searchInWeaviate(queryText: string) {
     console.log("⚠️ All chunks filtered out due to low scores - check if threshold is too high");
   }
 
-  return filteredResults as { properties: { text?: string }; metadata?: any }[];
+  return filteredResults as WeaviateQueryObject[];
 }
 export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
@@ -113,7 +130,6 @@ export async function POST(req: NextRequest) {
     const {
       message_id,
       query,
-      systemPrompt,
       modelId,
       temperature,
       contacts = [],
@@ -227,7 +243,7 @@ export async function POST(req: NextRequest) {
     ];
 
     // Step 1: Fusion reranking with header boost and lexical overlap
-    const fusedChunks = response.map((ch: any) => {
+    const fusedChunks = response.map((ch: WeaviateQueryObject) => {
       const text = ch.properties?.text || "";
       const textNorm = normalizeText(text);
 
@@ -290,7 +306,8 @@ export async function POST(req: NextRequest) {
     );
 
     // Step 2: MMR diversity selection (15 → 5 chunks)
-    const mmrCandidates: MMRCandidate[] = fusedChunks.map((item, index) => ({
+    type FusedChunk = typeof fusedChunks[0];
+    const mmrCandidates: MMRCandidate<FusedChunk>[] = fusedChunks.map((item, index) => ({
       id: `chunk-${index}`,
       normalizedText: item.textNorm,
       score: item.score,
