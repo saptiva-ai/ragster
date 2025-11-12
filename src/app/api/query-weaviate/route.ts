@@ -3,7 +3,7 @@ import { ModelFactory } from "@/lib/services/modelFactory";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
-import { MODEL_NAMES } from "@/config/models";
+import { MODEL_NAMES, CHAT_MODELS } from "@/config/models";
 import {
   normalizeText,
   extractHeader,
@@ -375,14 +375,36 @@ export async function POST(req: NextRequest) {
 
       === TU RESPUESTA (SOLO BASADA EN LAS SECCIONES DE ARRIBA) ===`;
 
-    const modelService = ModelFactory.getModelService();
-    const answer = await modelService.generateText(
-      message_id,
-      prompt,
-      query,
-      modelId,
-      temperature || 0.3
-    );
+    // Determine which provider to use based on modelId
+    const modelConfig = CHAT_MODELS.find((m) => m.id === modelId);
+    const provider = modelConfig?.provider || "saptiva";
+
+    let answer: string;
+    let actualProvider: string;
+
+    if (provider === "huggingface") {
+      console.log(`Using HuggingFace service for model: ${modelId}`);
+      const hfService = ModelFactory.getHuggingFaceService();
+      answer = await hfService.generateText(
+        message_id,
+        prompt,
+        query,
+        modelId,
+        temperature || 0.3
+      );
+      actualProvider = "huggingface";
+    } else {
+      console.log(`Using Saptiva service for model: ${modelId}`);
+      const modelService = ModelFactory.getModelService();
+      answer = await modelService.generateText(
+        message_id,
+        prompt,
+        query,
+        modelId,
+        temperature || 0.3
+      );
+      actualProvider = "saptiva";
+    }
 
     return NextResponse.json({
       success: true,
@@ -390,7 +412,7 @@ export async function POST(req: NextRequest) {
       matches: [],
       answer: answer,
       modelId,
-      provider: "saptiva",
+      provider: actualProvider,
     });
   } catch (error) {
     console.error("Error processing query:", error);

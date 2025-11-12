@@ -72,7 +72,38 @@ export class SaptivaService {
 
       return sinRazonamiento;
     } catch (error) {
-      console.error("❌ Error al llamar a la API de Saptiva:", error);
+      console.error("Error al llamar a la API de Saptiva:", error);
+
+      // Check if error is a server error (timeout, 500, 503) that should trigger fallback
+      const shouldFallback =
+        process.env.HF_FALLBACK_ENABLED === "true" &&
+        (error instanceof Error &&
+          (error.message.includes("timeout") ||
+            error.message.includes("HTTP 500") ||
+            error.message.includes("HTTP 503")));
+
+      if (shouldFallback) {
+        console.warn("Attempting HuggingFace fallback due to Saptiva server error...");
+        try {
+          // Dynamic import to avoid circular dependency
+          const { ModelFactory } = await import("./modelFactory");
+          const hfService = ModelFactory.getHuggingFaceService();
+          return await hfService.generateText(
+            id,
+            prompt,
+            query,
+            model,
+            temperature,
+            maxTokens
+          );
+        } catch (hfError) {
+          console.error("HuggingFace fallback also failed:", hfError);
+          throw new Error(
+            "Both Saptiva and HuggingFace services failed. Please try again later."
+          );
+        }
+      }
+
       throw error;
     }
   }
