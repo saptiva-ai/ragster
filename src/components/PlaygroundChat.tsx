@@ -373,7 +373,7 @@ export default function PlaygroundChat() {
                       </span>
                     </div>
                   ) : (
-                    <div className="prose prose-sm max-w-none mb-1">
+                    <div className="prose prose-sm max-w-none mb-1 break-words overflow-wrap-anywhere">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         rehypePlugins={[rehypeSanitize]}
