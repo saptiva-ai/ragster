@@ -1,8 +1,8 @@
-import {NextAuthOptions} from "next-auth";
+import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
-import {compare} from "bcryptjs";
+import { compare } from "bcryptjs";
 
 // Declaración de los tipos adicionales para la sesión y el usuario en NextAuth
 declare module "next-auth" {
@@ -29,8 +29,8 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credenciales",
       credentials: {
-        email: {label: "Correo electrónico", type: "email"},
-        password: {label: "Contraseña", type: "password"},
+        email: { label: "Correo electrónico", type: "email" },
+        password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials) {
         // Validar que se proporcionen correo y contraseña
@@ -40,15 +40,21 @@ export const authOptions: NextAuthOptions = {
 
         // Conectar a la base de datos
         const client = await clientPromise;
-        const db = client.db(process.env.MONGODB_DB); 
+        const db = client.db(process.env.MONGODB_DB);
         const user = await db
           .collection("users")
-          .findOne({email: credentials.email});
+          .findOne({ email: credentials.email });
+
+        // Verificar si el usuario existe
+        if (!user) {
+          throw new Error("No se encontró un usuario con este correo");
+        }
 
         // Verificar si el usuario existe y la contraseña es correcta
-        const isValid = user && await compare(credentials.password, user.password);
+        const isValid =
+          user && (await compare(credentials.password, user.password));
 
-        if (!user || !isValid) {
+        if (!isValid) {
           throw new Error("Credenciales inválidas");
         }
 
@@ -71,7 +77,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     // Callback para personalizar el token JWT
-    async jwt({token, user}) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -79,7 +85,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     // Callback para personalizar la sesión
-    async session({session, token}) {
+    async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
