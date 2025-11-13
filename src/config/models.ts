@@ -11,7 +11,7 @@ export interface ModelConfig {
 
 // Available chat models
 export const CHAT_MODELS: ModelConfig[] = [
-  { id: "Saptiva Turbo", name: "Saptiva Turbo", provider: "saptiva" },
+  { id: "Saptiva Turbo", name: "Saptiva KAL Fast", provider: "saptiva" },
   { id: "Saptiva Legacy", name: "Saptiva Legacy", provider: "saptiva" },
   { id: "Saptiva Ops", name: "Saptiva Ops", provider: "saptiva" },
   { id: "Saptiva Cortex", name: "Saptiva Cortex", provider: "saptiva" },

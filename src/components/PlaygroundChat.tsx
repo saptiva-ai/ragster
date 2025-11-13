@@ -1,8 +1,8 @@
 "use client";
 
-import {useState, useRef, useEffect} from "react";
-import {v4 as uuidv4} from "uuid";
-import {DEFAULT_MODEL_SETTINGS} from "@/config/models";
+import { useState, useRef, useEffect } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { DEFAULT_MODEL_SETTINGS } from "@/config/models";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -80,7 +80,7 @@ export default function PlaygroundChat() {
         } else {
           // Fallback a localStorage
           console.warn(
-            "No se pudo cargar la configuración desde la API, usando localStorage como fallback",
+            "No se pudo cargar la configuración desde la API, usando localStorage como fallback"
           );
           const storedSettings = localStorage.getItem("modelSettings");
           if (storedSettings) {
@@ -117,7 +117,7 @@ export default function PlaygroundChat() {
         } catch (error) {
           console.error(
             "Error al procesar configuraciones actualizadas:",
-            error,
+            error
           );
         }
       }
@@ -125,14 +125,14 @@ export default function PlaygroundChat() {
 
     window.addEventListener(
       "settingsChanged",
-      handleSettingsChange as EventListener,
+      handleSettingsChange as EventListener
     );
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
       window.removeEventListener(
         "settingsChanged",
-        handleSettingsChange as EventListener,
+        handleSettingsChange as EventListener
       );
       window.removeEventListener("storage", handleStorageChange);
     };
@@ -140,7 +140,7 @@ export default function PlaygroundChat() {
 
   // Scroll al final de los mensajes cuando se añade uno nuevo
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Auto-process message queue when it changes or when loading completes
@@ -190,7 +190,7 @@ export default function PlaygroundChat() {
     try {
       // Scroll to bottom
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
 
       // Comenzar con la etapa de búsqueda
@@ -331,10 +331,10 @@ export default function PlaygroundChat() {
             <p className="text-sm mt-1">
               Haz una pregunta sobre los documentos cargados
             </p>
-            <p className="text-xs mt-3 text-gray-800">
+            {/** <p className="text-xs mt-3 text-gray-800">
               Usando modelo:{" "}
               <span className="font-medium">{modelSettings.modelId}</span>{" "}
-            </p>
+            </p>*/}
           </div>
         ) : (
           <div className="space-y-4">
@@ -358,15 +358,15 @@ export default function PlaygroundChat() {
                     <div className="flex items-center space-x-2">
                       <div
                         className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"
-                        style={{animationDelay: "0ms"}}
+                        style={{ animationDelay: "0ms" }}
                       ></div>
                       <div
                         className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"
-                        style={{animationDelay: "150ms"}}
+                        style={{ animationDelay: "150ms" }}
                       ></div>
                       <div
                         className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"
-                        style={{animationDelay: "300ms"}}
+                        style={{ animationDelay: "300ms" }}
                       ></div>
                       <span className="ml-2 text-sm text-gray-600">
                         {loadingStage}
@@ -389,8 +389,8 @@ export default function PlaygroundChat() {
                     message.modelInfo && (
                       <div className="mt-2 pt-1 border-t border-gray-200">
                         <p className="text-xs text-gray-500 flex justify-between">
-                          <span>Generado por {modelSettings.modelId}</span>
-                          {/*message.matches && (
+                          {/*<span>Generado por {modelSettings.modelId}</span>
+                          message.matches && (
                             <span>
                               {message.matches.length} coincidencias encontradas
                             </span>
