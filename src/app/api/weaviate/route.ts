@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
-import axios from "axios";
-import { MODEL_NAMES } from "@/config/models";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
-const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
-const saptivaApiKey = process.env.SAPTIVA_API_KEY!;
 
 export async function GET() {
   const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
