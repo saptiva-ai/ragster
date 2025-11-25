@@ -8,30 +8,6 @@ const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
 const saptivaApiKey = process.env.SAPTIVA_API_KEY!;
 
-// Función para generar embedding con tu API
-async function getCustomEmbedding(text: string): Promise<number[]> {
-  // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
-  const response = await axios.post(
-    embeddingApiUrl,
-    {
-      model: MODEL_NAMES.EMBEDDING,
-      prompt: text,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${saptivaApiKey}`,
-      },
-    }
-  );
-
-  if (!response.data || !Array.isArray(response.data.embeddings)) {
-    throw new Error("Formato de embedding inválido");
-  }
-
-  return response.data.embeddings;
-}
-
 export async function GET() {
   const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
     process.env.WEAVIATE_HOST!,
