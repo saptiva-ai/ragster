@@ -45,16 +45,11 @@ export const authOptions: NextAuthOptions = {
           .collection("users")
           .findOne({email: credentials.email});
 
-        // Verificar si el usuario existe
-        if (!user) {
-          throw new Error("No se encontró un usuario con este correo");
-        }
+        // Verificar si el usuario existe y la contraseña es correcta
+        const isValid = user && await compare(credentials.password, user.password);
 
-        // Verificar contraseña
-        const isValid = await compare(credentials.password, user.password);
-
-        if (!isValid) {
-          throw new Error("Contraseña inválida");
+        if (!user || !isValid) {
+          throw new Error("Credenciales inválidas");
         }
 
         // Retornar datos del usuario
@@ -69,7 +64,7 @@ export const authOptions: NextAuthOptions = {
   ],
   adapter: MongoDBAdapter(clientPromise),
   pages: {
-    signIn: "/auth/signin", // Página personalizada para inicio de sesión
+    signIn: "/auth/signup", // Página personalizada para inicio de sesión
   },
   session: {
     strategy: "jwt", // Se utiliza JWT para manejar sesiones

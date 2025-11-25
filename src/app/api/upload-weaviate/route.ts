@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import mammoth from "mammoth";
-import weaviate, {WeaviateClient} from "weaviate-client";
+import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import axios from "axios";
+import { MODEL_NAMES } from "@/config/models";
 
 interface Chunk {
   text: string;
@@ -97,12 +98,12 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
   }
 
   try {
+    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
     const response = await axios.post(
       embeddingUrl,
       {
-        model: "Saptiva Embed",
+        model: MODEL_NAMES.EMBEDDING,
         prompt: text,
-        stream: false,
       },
       {
         headers: {
@@ -126,6 +127,14 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
     return response.data.embeddings;
   } catch (error) {
     console.error("Error fetching embedding:", error);
+    // Log the actual API error response for debugging
+    if (axios.isAxiosError(error) && error.response) {
+      console.error("API Error Response:", {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+      });
+    }
     throw error;
   }
 }
@@ -156,8 +165,24 @@ async function insertDataToWeaviate(
     })
   );
 
-  const docsToInsert = await Promise.all(
-    enrichedChunks.map(async (item) => ({
+  // Changed from Promise.all (parallel) to sequential processing
+  // This prevents rate limiting by SAPTIVA API when processing multiple chunks
+  const docsToInsert = [];
+
+  for (let i = 0; i < enrichedChunks.length; i++) {
+    const item = enrichedChunks[i];
+
+    // Add 500ms delay between requests to avoid overwhelming the API
+    // Skip delay for first chunk to start immediately
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // Generate embedding for this chunk
+    const embedding = await getCustomEmbedding(item.text);
+
+    // Build document object with properties and vectors
+    docsToInsert.push({
       properties: {
         text: item.text,
         chunkIndex: item.chunkIndex,
@@ -170,9 +195,9 @@ async function insertDataToWeaviate(
         uploadDate: item.uploadDate,
         sourceNamespace: item.sourceNamespace,
       },
-      vectors: await getCustomEmbedding(item.text),
-    }))
-  );
+      vectors: embedding,
+    });
+  }
 
   console.log(
     "Docs a insertar en Weaviate:",
@@ -285,7 +310,7 @@ export async function POST(req: NextRequest) {
         });
 
         // Aquí se suben los datos a Weaviate
-        await insertDataToWeaviate(
+        insertDataToWeaviate(
           chunks,
           filename,
           file,

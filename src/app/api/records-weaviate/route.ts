@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
+import { MODEL_NAMES } from "@/config/models";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 
@@ -35,12 +36,12 @@ export async function POST(request: Request) {
     const collection = client.collections.get(coll[0].name);
 
     // 🧠 Embedding con SAPTIVA
+    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
     const embeddingResponse = await axios.post(
       process.env.EMBEDDING_API_URL!,
       {
-        model: "Saptiva Embed",
+        model: MODEL_NAMES.EMBEDDING,
         prompt: text,
-        stream: false,
       },
       {
         headers: {
@@ -146,12 +147,12 @@ export async function PUT(request: Request) {
     }
 
     // 🔁 Obtener nuevo vector desde SAPTIVA
+    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
     const embeddingResponse = await axios.post(
       process.env.EMBEDDING_API_URL!,
       {
-        model: "Saptiva Embed",
+        model: MODEL_NAMES.EMBEDDING,
         prompt: properties.text,
-        stream: false,
       },
       {
         headers: {

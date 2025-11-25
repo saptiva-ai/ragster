@@ -2,6 +2,7 @@
 
 import {useState, useRef, useEffect} from "react";
 import {v4 as uuidv4} from "uuid";
+import {DEFAULT_MODEL_SETTINGS} from "@/config/models";
 
 type Source = {
   name: string;
@@ -47,6 +48,7 @@ export default function PlaygroundChat() {
   const [loadingStage, setLoadingStage] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState("");
+  const [messageQueue, setMessageQueue] = useState<string[]>([]);
 
   if (token === "") {
     setToken(uuidv4());
@@ -54,10 +56,9 @@ export default function PlaygroundChat() {
 
   // Obtener configuraciones del modelo
   const [modelSettings, setModelSettings] = useState<StoredSettings>({
-    modelId: "Saptiva Turbo",
-    temperature: 0.7,
-    systemPrompt:
-      "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza la información de las fuentes para dar respuestas precisas.",
+    modelId: DEFAULT_MODEL_SETTINGS.modelId,
+    temperature: DEFAULT_MODEL_SETTINGS.temperature,
+    systemPrompt: DEFAULT_MODEL_SETTINGS.systemPrompt,
   });
 
   // Cargar configuraciones guardadas al montar el componente
@@ -139,19 +140,38 @@ export default function PlaygroundChat() {
     messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
   }, [messages]);
 
+  // Auto-process message queue when it changes or when loading completes
+  useEffect(() => {
+    processQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageQueue, isLoading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!input.trim() || isLoading) return;
+    if (!input.trim()) return;
+
+    // Add message to queue and clear input immediately
+    const userInput = input.trim();
+    setInput("");
+    setMessageQueue((prev) => [...prev, userInput]);
+  };
+
+  const processQueue = async () => {
+    // Don't process if already loading or queue is empty
+    if (isLoading || messageQueue.length === 0) return;
+
+    // Get first message from queue
+    const currentInput = messageQueue[0];
+    setMessageQueue((prev) => prev.slice(1));
 
     const userMessage: Message = {
       role: "user",
-      content: input,
+      content: currentInput,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
     setIsLoading(true);
 
     // "Typing" message as placeholder
@@ -177,7 +197,7 @@ export default function PlaygroundChat() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
         message_id: token,
-        query: input,
+        query: currentInput,
         modelId: modelSettings.modelId,
         temperature: modelSettings.temperature,
         systemPrompt: modelSettings.systemPrompt,
@@ -478,7 +498,7 @@ export default function PlaygroundChat() {
             onChange={handleInputChange}
             placeholder={`Haz una pregunta...`}
             className="w-full p-4 pr-24 border border-gray-300 rounded-lg focus:ring-[#01f6d2] focus:border-[#01f6d2] bg-white text-black placeholder-gray-600"
-            disabled={isLoading}
+            disabled={false}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -486,10 +506,16 @@ export default function PlaygroundChat() {
               }
             }}
           />
+          {/* Queue indicator badge */}
+          {messageQueue.length > 0 && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-medium">
+              {messageQueue.length} en cola
+            </div>
+          )}
           <button
             type="submit"
             className="absolute right-2.5 bottom-2.5 px-4 py-2 text-black bg-[#01f6d2] hover:bg-teal-400 rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed"
-            disabled={isLoading || !input.trim()}
+            disabled={!input.trim()}
           >
             {isLoading ? (
               <div className="flex items-center">

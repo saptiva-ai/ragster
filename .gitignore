@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code settings (personal configs)
+.claude/
+*.local.json
+.local/
+
+# Jetbrains Code settings
+.idea/

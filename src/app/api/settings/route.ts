@@ -1,14 +1,10 @@
 import {NextRequest, NextResponse} from "next/server";
 import {connectToDatabase} from "@/lib/mongodb/client";
+import {DEFAULT_MODEL_SETTINGS} from "@/config/models";
 
 // Default settings in case nothing exists in the database yet
 const defaultSettings = {
-  modelSettings: {
-    modelId: "Qwen",
-    temperature: 0.7,
-    systemPrompt:
-      "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
-  },
+  modelSettings: DEFAULT_MODEL_SETTINGS,
 };
 
 // GET para obtener configuraciones

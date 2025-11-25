@@ -1,136 +1,171 @@
-# ragster - Document Processing and Vector Search Platform
+# RAGster - Plataforma de Procesamiento de Documentos y Búsqueda Vectorial
 
-A modern web application built with Next.js for processing documents, generating embeddings, and performing semantic search using vector databases.
+Una aplicación web moderna construida con Next.js para procesar documentos, generar embeddings y realizar búsquedas semánticas usando bases de datos vectoriales.
 
-## Features
+## Características
 
-- 📄 **Multi-format Document Support**
+- 📄 **Soporte Multi-formato de Documentos**
 
-  - Process TXT, PDF, DOCX, and other document formats
-  - Automatic text extraction and chunking
-  - Support for large documents with efficient processing
+  - Procesa formatos TXT, PDF, DOCX y otros
+  - Extracción automática de texto y segmentación
+  - Soporte para documentos grandes con procesamiento eficiente
 
-- 🔍 **Advanced Search Capabilities**
+- 🔍 **Capacidades de Búsqueda Avanzada**
 
-  - Semantic search using vector embeddings
-  - Multilingual support with E5 model
+  - Búsqueda semántica usando embeddings vectoriales
+  - Soporte multilingüe con modelo E5
 
-- 🛠️ **Modern Tech Stack**
-  - Next.js 15 with TypeScript
+- 🛠️ **Stack Tecnológico Moderno**
+  - Next.js 15 con TypeScript
   - React 19
-  - TailwindCSS for styling
-  - MongoDB for data storage
-  - LangChain for document processing
+  - TailwindCSS para estilos
+  - MongoDB para almacenamiento de datos
+  - LangChain para procesamiento de documentos
 
-## Vector Database Management
+- 💬 **Integración WhatsApp Business**
+  - Chatbot RAG automático que responde usando documentos vectorizados
+  - Gestión de conversaciones y leads desde MongoDB
+  - Configuración simple desde panel Settings
+  - Comando `reset` para reiniciar conversaciones
 
-### Weaviate Integration
+## 🚀 Inicio Rápido
 
-- **Embedding Storage**
+### Instalación en 5 Minutos
 
-  - Store and manage document embeddings in Weaviate
-  - Automatic schema generation for different document types
-  - Efficient vector search and retrieval
+Sigue nuestra guía paso a paso con configuración automática:
 
-- **Embedding Management**
+**➡️ [https://saptiva-ai.github.io/ragster/setup5min.html](https://saptiva-ai.github.io/ragster)**
 
-  - View and modify existing embeddings
-  - Batch update capabilities
-  - Embedding version control
-  - Real-time embedding updates
+Esta guía incluye:
+- ✅ Configuración automática de variables de entorno
+- ✅ Obtención de API keys paso a paso
+- ✅ Instalación con un solo clic
+- ✅ Verificación de funcionamiento
 
-- **Search and Query**
-  - Semantic search across all stored embeddings
-  - Hybrid search combining vector and keyword search
-  - Customizable similarity metrics
-  - Filter and sort capabilities
+### Instalación Manual
 
-### Environment Setup
+Si prefieres instalación manual, continúa con las instrucciones detalladas más abajo.
 
-Add the following to your `.env.local`:
+## Gestión de Base de Datos Vectorial
+
+### Integración con Weaviate
+
+- **Almacenamiento de Embeddings**
+
+  - Almacena y gestiona embeddings de documentos en Weaviate
+  - Generación automática de esquemas para diferentes tipos de documentos
+  - Búsqueda y recuperación vectorial eficiente
+
+- **Gestión de Embeddings**
+
+  - Ver y modificar embeddings existentes
+  - Capacidades de actualización en lote
+  - Control de versiones de embeddings
+  - Actualizaciones de embeddings en tiempo real
+
+- **Búsqueda y Consulta**
+  - Búsqueda semántica en todos los embeddings almacenados
+  - Búsqueda híbrida combinando búsqueda vectorial y por palabras clave
+  - Métricas de similitud personalizables
+  - Capacidades de filtrado y ordenamiento
+
+### Configuración del Entorno
+
+Agrega lo siguiente a tu `.env.local`:
 
 ```env
-WEAVIATE_URL=your_weaviate_url
+WEAVIATE_HOST=your_weaviate_host
 WEAVIATE_API_KEY=your_weaviate_api_key
 ```
 
-## Getting Started
+## Comenzando
 
-### Prerequisites
+### Prerrequisitos
 
-- Node.js 18+
-- MongoDB
-- Weaviate account and API key
+- Node.js >= 20.18.1 ([descargar](https://nodejs.org/))
+- MongoDB ([descargar](https://www.mongodb.com/try/download/community))
+- API key de Saptiva
+- Cuenta y API key de Weaviate
 
-### Installation
+### Instalación
 
-1. Clone the repository:
+1. Clona el repositorio:
 
 ```bash
-git clone https://github.com/saptiva-ai/ragster-weaviate.git
+git clone https://github.com/saptiva-ai/ragster.git
 cd ragster
 ```
 
-2. Install dependencies:
+2. Instala las dependencias:
 
 ```bash
 npm install
 ```
 
-3. Create a `.env.local` file with your environment variables:
+3. **Obtén tus API keys:**
+
+   **API Key de Saptiva:**
+   - Visita [lab.saptiva.com](https://lab.saptiva.com/)
+   - Inicia sesión → Crear API Key → Copiar key (comienza con `va-ai-`)
+
+   **Credenciales de Weaviate:**
+   - Visita [console.weaviate.cloud](https://console.weaviate.cloud/)
+   - Crear cluster gratuito → Copiar REST Endpoint + API Key
+
+4. Crea un archivo `.env.local` con tus variables de entorno:
 
 ```env
-#Saptiva API Key
+# Configuración de API Saptiva
 SAPTIVA_API_KEY=
+SAPTIVA_API_BASE_URL=https://api.saptiva.com
+EMBEDDING_API_URL=https://api.saptiva.com/api/embed
 
-#Saptiva API Base URL
-SAPTIVA_API_BASE_URL=https://api.saptiva.com/
-
-#Variables de entorno para la aplicación
-#Base de datos MongoDB
+# Base de Datos MongoDB
 MONGODB_URI=
 MONGODB_DB=
 
-#Embedding SAPTIVA
-EMBEDDING_API_URL=https://api.saptiva.com/api/embeddings
+# Base de Datos Vectorial Weaviate
+WEAVIATE_HOST=
+WEAVIATE_API_KEY=
 
-#META
-URL_META=https://graph.facebook.com/v19.0
+# Configuración de NextAuth
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=
 
-#NEXT
+# Configuración de Next.js
 NEXT_PUBLIC_CHAT_API=http://localhost:3000
 
-WEAVIATE_HOST=""
-WEAVIATE_API_KEY=""
+# WhatsApp Business (Opcional)
+URL_META=https://graph.facebook.com/v19.0
 ```
 
-4. Run the development server:
+5. Ejecuta el servidor de desarrollo:
 
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+La aplicación estará disponible en `http://localhost:3000`
 
-## Project Structure
+## Estructura del Proyecto
 
 ```
-ragster/
-├── src/              # Source code
-├── public/           # Static files
-└── package.json     # Project dependencies
+RAGster/
+├── src/              # Código fuente
+├── public/           # Archivos estáticos
+└── package.json     # Dependencias del proyecto
 ```
 
-## Available Scripts
+## Scripts Disponibles
 
-- `npm run dev` - Start development server with Turbopack
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
+- `npm run dev` - Iniciar servidor de desarrollo con Turbopack
+- `npm run build` - Construir para producción
+- `npm run start` - Iniciar servidor de producción
+- `npm run lint` - Ejecutar ESLint
 
-## Dependencies
+## Dependencias
 
-### Core Dependencies
+### Dependencias Principales
 
 - Next.js 15
 - React 19
@@ -139,21 +174,21 @@ ragster/
 - MongoDB
 - LangChain
 
-### Document Processing
+### Procesamiento de Documentos
 
 - pdf-parse
 - mammoth
 - docx-parser
 - @xenova/transformers
 
-## Contributing
+## Contribuyendo
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork el repositorio
+2. Crea tu rama de características (`git checkout -b feature/CaracteristicaIncreible`)
+3. Confirma tus cambios (`git commit -m 'Agregar alguna CaracteristicaIncreible'`)
+4. Push a la rama (`git push origin feature/CaracteristicaIncreible`)
+5. Abre un Pull Request
 
-## License
+## Licencia
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.

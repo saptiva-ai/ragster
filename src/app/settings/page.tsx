@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import {DEFAULT_MODEL_SETTINGS, CHAT_MODELS} from "@/config/models";
 
 interface ModelSettingsData {
   modelId: string;
@@ -25,10 +26,9 @@ interface NotificationState {
 
 export default function SettingsPage() {
   const [modelSettings, setModelSettings] = useState<ModelSettingsData>({
-    modelId: "Qwen",
-    temperature: 0.7,
-    systemPrompt:
-      "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
+    modelId: DEFAULT_MODEL_SETTINGS.modelId,
+    temperature: DEFAULT_MODEL_SETTINGS.temperature,
+    systemPrompt: DEFAULT_MODEL_SETTINGS.systemPrompt,
   });
 
   const [wabaSettings, setWabaSettings] = useState<WabaSettingsData>({
@@ -170,6 +170,28 @@ export default function SettingsPage() {
 
   // Guardar configuraciones de WABA
   const handleSaveWabaSettings = async () => {
+    // Validar campos requeridos
+    if (!wabaSettings.phoneNumberId || !wabaSettings.businessAccountId || !wabaSettings.accessToken) {
+      showNotification(
+        "error",
+        "Todos los campos son requeridos"
+      );
+      return;
+    }
+
+    // Validación adicional: eliminar espacios en blanco
+    if (
+      wabaSettings.phoneNumberId.trim() === "" ||
+      wabaSettings.businessAccountId.trim() === "" ||
+      wabaSettings.accessToken.trim() === ""
+    ) {
+      showNotification(
+        "error",
+        "Los campos no pueden estar vacíos"
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch("/api/settings", {
@@ -251,7 +273,7 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de número de teléfono
+                  ID de número de teléfono <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="text"
@@ -260,13 +282,14 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="123456789012345"
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ID de cuenta de WhatsApp Business
+                  ID de cuenta de WhatsApp Business <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="text"
@@ -275,13 +298,14 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="123456789"
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Token de acceso
+                  Token de acceso <span className="text-red-800">*</span>
                 </label>
                 <input
                   type="password"
@@ -290,6 +314,7 @@ export default function SettingsPage() {
                   onChange={handleWabaChange}
                   className="w-full p-2 border border-gray-300 rounded-md placeholder-gray-700"
                   placeholder="EAABx..."
+                  required
                   disabled={!wabaSettings.isEnabled}
                 />
               </div>
@@ -327,11 +352,11 @@ export default function SettingsPage() {
                   onChange={handleModelChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 >
-                  <option value="Saptiva Turbo">Saptiva Turbo</option>
-                  <option value="Saptiva Cortex">Saptiva Cortex</option>
-                  <option value="Saptiva Ops">Saptiva Ops</option>
-                  <option value="Qwen">Qwen</option>
-                  <option value="LLaMa3.3 70B">LLaMa3.3 70B</option>
+                  {CHAT_MODELS.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

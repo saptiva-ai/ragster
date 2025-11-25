@@ -26,6 +26,6 @@ export const config = {
     "/dashboard/:path*",
     //"/api/:path*",
     // Excluir rutas de autenticación y rutas públicas
-    "/((?!api/wab|api/query-weaviate|auth|_next/static|_next/image|favicon.ico|public).*)",
+    "/((?!api/wab|api/query-weaviate|auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|ico|webp)).*)",
   ],
 };

@@ -40,7 +40,11 @@ export default function Navbar() {
         {/* Logo */}
         <div className="flex-shrink-0">
           <Link href="/" className="flex items-center">
-            <span className="text-[#01f6d2] font-bold text-xl">RAGster</span>
+            <img
+              src="/logo.png"
+              alt="RAGster"
+              className="h-8 w-auto object-contain"
+            />
           </Link>
         </div>
 

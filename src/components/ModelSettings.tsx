@@ -1,34 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-type ModelProvider = "saptiva";
-
-type Model = {
-  id: string;
-  name: string;
-  provider: ModelProvider;
-};
+import { DEFAULT_MODEL_SETTINGS, CHAT_MODELS } from "@/config/models";
 
 export default function ModelSettings() {
-  const [selectedModel, setSelectedModel] = useState<string>("Saptiva Turbo");
-  const [temperature, setTemperature] = useState<number>(0.7);
-  const [systemPrompt, setSystemPrompt] = useState<string>(
-    "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
-  );
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_SETTINGS.modelId);
+  const [temperature, setTemperature] = useState<number>(DEFAULT_MODEL_SETTINGS.temperature);
+  const [systemPrompt, setSystemPrompt] = useState<string>(DEFAULT_MODEL_SETTINGS.systemPrompt);
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  const models: Model[] = [
-    { id: "Saptiva Turbo", name: "Saptiva Turbo", provider: "saptiva" },
-    { id: "Saptiva Cortex", name: "Saptiva Cortex", provider: "saptiva" },
-    { id: "Saptiva Ops", name: "Saptiva Ops", provider: "saptiva" },
-    { id: "DeepSeek R1 Lite", name: "DeepSeek R1 Lite", provider: "saptiva" },
-    { id: "LLAMA3.3 70B", name: "LLAMA3.3 70B", provider: "saptiva" },
-    { id: "Qwen", name: "Qwen", provider: "saptiva" },
-    { id: "Phi 4", name: "Phi 4", provider: "saptiva" },
-  ];
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -128,7 +109,7 @@ export default function ModelSettings() {
           <div>
             <label className="block text-sm font-bold text-black mb-2">Modelo</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {models.map((model) => (
+              {CHAT_MODELS.map((model) => (
                 <div key={model.id} className="relative">
                   <input
                     type="radio"

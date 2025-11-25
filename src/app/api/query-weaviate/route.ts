@@ -3,6 +3,7 @@ import { ModelFactory } from "@/lib/services/modelFactory";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
+import { MODEL_NAMES } from "@/config/models";
 
 const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
 const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
@@ -25,12 +26,12 @@ function extraerPregunta(texto: string): string | null {
 
 // Genera embedding con Saptiva
 async function getCustomEmbedding(text: string): Promise<number[]> {
+  // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
   const response = await axios.post(
     embeddingApiUrl,
     {
-      model: "Saptiva Embed",
+      model: MODEL_NAMES.EMBEDDING,
       prompt: text,
-      stream: false,
     },
     {
       headers: {
@@ -53,7 +54,7 @@ async function searchInWeaviate(queryText: string) {
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {
-    limit: 2,
+    limit: 10, // Increased from 2 to 10 for better context coverage
   });
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
@@ -155,36 +156,43 @@ export async function POST(req: NextRequest) {
 
     console.log("Response:", JSON.stringify(response, null, 2));
 
+    // Combine ALL retrieved chunks into context
     let text = "";
     if (response.length > 0) {
-      text =
-        typeof response[0].properties.text === "string"
-          ? response[0].properties.text
-          : "";
+      text = response
+        .map((chunk, index) => {
+          const chunkText = typeof chunk.properties.text === "string"
+            ? chunk.properties.text
+            : "";
+          return `[Sección ${index + 1}]:\n${chunkText}`;
+        })
+        .join("\n\n---\n\n");
     }
 
     const prompt = `
       Contexto General:
       ${systemPrompt}
 
-      Dispones de:
-      
+      === INFORMACIÓN RELEVANTE DE LOS DOCUMENTOS ===
+      ${text}
+
+      === INSTRUCCIONES CRÍTICAS ===
+
+      1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
+      2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
+      3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
+      4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
+      5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
+      6. Lenguaje claro y profesional.
+      7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
+      8. Responde siempre en español.
+      9. No incluyas etiquetas como <think> o </think>.
+      10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
+
       Historial de conversación: "${history}"
       Última pregunta enviada: "${pregunta}"
       ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
-      Mensaje actual del usuario: "${query}"
-      Información relevante de Weaviate: "${text}"
-
-      Instrucciones:
- 
-      1. Si el mensaje del usuario es breve o ambiguo (ej. "sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta enviada.
-      2. Solo si el mensaje del usuario NO cumple con la opción 1, responde usando la siguiente respuesta añadiendo contexto: "${text || ""}".
-      3. Sé claro y enfocado (máximo 190 palabras). Lenguaje sencillo, cálido y profesional.
-      4. No repitas preguntas hechas antes (verifica el historial). Si ya preguntaste algo, propone un nuevo ángulo o tema relacionado.
-      5. No expliques intenciones del usuario, responde directamente.
-      6. Bajo ninguna circunstancia inventes datos.
-      7. Siempre responde en español.
-      8. No incluyas etiquetas y secciones como <think> o </think> en la respuesta.`;
+      Mensaje actual del usuario: "${query}"`;
 
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(

@@ -1,6 +1,6 @@
 "use client";
 
-import {useState, useEffect} from "react";
+import { useState, useEffect } from "react";
 import {
   DocumentTextIcon,
   TrashIcon,
@@ -16,13 +16,13 @@ import AddUrlModal from "@/components/AddUrlModal";
 
 type Source = {
   id?: string;
-  sourceName: string;
-  sourceType: string;
-  sourceSize: string;
+  filename: string;
+  type: string;
+  size: string;
   uploadDate: string;
-  chunkIndex: number;
-  sourceNamespace?: string;
-  url?: string;
+  vectorsUploaded: number;
+  namespace?: string;
+  status: number;
 };
 
 type ModalType = "document" | "text" | "url" | null;
@@ -34,7 +34,6 @@ export default function DocumentsPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showOptions, setShowOptions] = useState(false);
 
   // Cargar la lista de fuentes
   useEffect(() => {
@@ -51,17 +50,15 @@ export default function DocumentsPage() {
 
         const data = await response.json();
 
-        if (data.success && data.sources) {
-          setSources(data.sources);
-
-          console.log("Fuentes:", data.file);
-
-          if (data.file === null) {
-            setActionInProgress(true);
+        if (data.success) {
+          if (data.fileExistsInDB === null) {
+            setSources([]);
+            setActionInProgress(false);
             return;
           }
 
-          setActionInProgress(false);
+          setSources([data.fileExistsInDB]);
+          setActionInProgress(true);
         } else {
           throw new Error(data.error || "Error al cargar las fuentes");
         }
@@ -81,7 +78,7 @@ export default function DocumentsPage() {
   const handleDeleteSource = async (id: string, name: string) => {
     if (
       !confirm(
-        `¿Estás seguro de que quieres eliminar "${name}"? Esta acción no se puede deshacer.`,
+        `¿Estás seguro de que quieres eliminar "${name}"? Esta acción no se puede deshacer.`
       )
     ) {
       return;
@@ -95,7 +92,7 @@ export default function DocumentsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({name}),
+        body: JSON.stringify({ name }),
       });
 
       if (!response.ok) {
@@ -110,7 +107,7 @@ export default function DocumentsPage() {
       alert(
         `Error al eliminar la fuente: ${
           error instanceof Error ? error.message : "Error desconocido"
-        }`,
+        }`
       );
     } finally {
       setActionInProgress(false);
@@ -171,64 +168,15 @@ export default function DocumentsPage() {
     }
   };
 
-  // Botón para seleccionar el tipo de fuente a añadir
+  // Botón simple para subir documento
   const AddSourceButton = () => (
-    <div className="relative">
-      {showOptions && (
-        <div
-          className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
-          onBlur={() => setShowOptions(false)}
-        >
-          <div className="py-1" role="menu" aria-orientation="vertical">
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("document");
-                setShowOptions(false);
-              }}
-            >
-              <DocumentIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Subir documento
-            </button>
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("text");
-                setShowOptions(false);
-              }}
-            >
-              <PencilIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Añadir texto
-            </button>
-            <button
-              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => {
-                setActiveModal("url");
-                setShowOptions(false);
-              }}
-            >
-              <GlobeAltIcon className="w-5 h-5 mr-2 text-[#01f6d2]" />
-              Añadir enlace web
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    <button
+      onClick={() => setActiveModal("document")}
+      className="px-4 py-2 bg-[#01f6d2] text-black rounded-lg hover:bg-teal-500"
+    >
+      Subir documento
+    </button>
   );
-
-  // Función para cerrar el menú al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showOptions) {
-        setShowOptions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showOptions]);
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -293,7 +241,7 @@ export default function DocumentsPage() {
               Intentar de nuevo
             </button>
           </div>
-        ) : sources.length === 0 ? (
+        ) : !actionInProgress ? (
           <div className="text-center p-10">
             <DocumentTextIcon className="h-16 w-16 mx-auto text-[#01f6d2]" />
             <h2 className="text-xl font-semibold mt-4 text-[#01f6d2]">
@@ -349,39 +297,25 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sources.map((source) => (
-                  <tr key={1} className="hover:bg-gray-50">
+                {sources.map((source, index) => (
+                  <tr
+                    key={source.id || `source-${index}`}
+                    className="hover:bg-gray-50"
+                  >
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
                         <div
                           className={`flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md
-                          ${
-                            source.sourceType === "url"
-                              ? "bg-purple-100 text-purple-600"
-                              : source.sourceType === "sourceType"
-                              ? "bg-green-100 text-green-600"
-                              : "bg-blue-100 text-blue-600"
-                          }`}
+                          ${"bg-blue-100 text-blue-600"}`}
                         >
-                          {renderSourceIcon(source.sourceType)}
+                          {renderSourceIcon(source.type)}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                            {source.sourceName}
+                            {source.filename}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {source.url ? (
-                              <a
-                                href={source.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:underline text-blue-500"
-                              >
-                                {new URL(source.url).hostname}
-                              </a>
-                            ) : (
-                              source.sourceSize
-                            )}
+                            {source.size}
                           </div>
                         </div>
                       </div>
@@ -389,22 +323,16 @@ export default function DocumentsPage() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${
-                          source.sourceType === "url"
-                            ? "bg-purple-100 text-purple-800"
-                            : source.sourceType === "'text/plain'"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
+                        ${"bg-blue-100 text-blue-800"}`}
                       >
-                        {getFileTypeDisplay(source.sourceType)}
+                        {getFileTypeDisplay(source.type)}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {source.chunkIndex || "—"}
+                      {source.vectorsUploaded || "—"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                      {source.sourceNamespace || "default"}
+                      {source.namespace || "default"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                       {formatDate(source.uploadDate)}
@@ -412,13 +340,13 @@ export default function DocumentsPage() {
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-center">
                       <button
                         onClick={() =>
-                          handleDeleteSource(source.id ?? "", source.sourceName)
+                          handleDeleteSource(source.id ?? "", source.filename)
                         }
-                        disabled={actionInProgress}
+                        disabled={source.status === 1}
                         className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
                         title="Eliminar fuente"
                       >
-                        {actionInProgress ? (
+                        {source.status === 1 ? (
                           <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                           <TrashIcon className="h-5 w-5" />
