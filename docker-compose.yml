@@ -8,7 +8,7 @@ services:
     container_name: ragster_app
     restart: always
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - MONGODB_URI=mongodb://mongo:27017/ragster
       - MONGODB_DB=ragster
