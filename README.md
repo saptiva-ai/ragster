@@ -92,8 +92,8 @@ WEAVIATE_API_KEY=your_weaviate_api_key
 1. Clona el repositorio:
 
 ```bash
-git clone https://github.com/saptiva-ai/ragster.git
-cd ragster
+git clone https://github.com/saptiva-ai/ragster-weaviate.git
+cd ragster-weaviate
 ```
 
 2. Instala las dependencias:
@@ -120,19 +120,19 @@ SAPTIVA_API_KEY=
 SAPTIVA_API_BASE_URL=https://api.saptiva.com
 EMBEDDING_API_URL=https://api.saptiva.com/api/embed
 
-# Base de Datos MongoDB
+# MongoDB
 MONGODB_URI=
 MONGODB_DB=
 
-# Base de Datos Vectorial Weaviate
+# Weaviate
 WEAVIATE_HOST=
 WEAVIATE_API_KEY=
 
-# Configuración de NextAuth
+# NextAuth
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=
 
-# Configuración de Next.js
+# Next.js
 NEXT_PUBLIC_CHAT_API=http://localhost:3000
 
 # WhatsApp Business (Opcional)

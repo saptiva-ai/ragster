@@ -16,6 +16,8 @@ export const CHAT_MODELS: ModelConfig[] = [
   { id: "Saptiva Ops", name: "Saptiva Ops", provider: "saptiva" },
   { id: "Saptiva Cortex", name: "Saptiva Cortex", provider: "saptiva" },
   { id: "Saptiva KAL", name: "Saptiva KAL", provider: "saptiva" },
+  { id: "DeepSeek R1 Lite", name: "DeepSeek R1 Lite", provider: "saptiva" },
+  { id: "LLAMA3.3 70B", name: "LLAMA3.3 70B", provider: "saptiva" },
 ];
 
 // Model names as constants
@@ -26,6 +28,8 @@ export const MODEL_NAMES = {
   CHAT_OPS: "Saptiva Ops",
   CHAT_CORTEX: "Saptiva Cortex",
   CHAT_KAL: "Saptiva KAL",
+  DEEPSEEK_R1_LITE: "DeepSeek R1 Lite",
+  LLAMA_70B: "LLAMA3.3 70B",
 
   // Embedding model
   EMBEDDING: "Saptiva Embed",
