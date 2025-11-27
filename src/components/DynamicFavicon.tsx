@@ -7,7 +7,7 @@ export default function DynamicFavicon() {
     // Actualizar el favicon con el ícono predeterminado
     const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
     link.setAttribute('rel', 'shortcut icon');
-    link.setAttribute('href', '/favicon.ico');
+    link.setAttribute('href', '/logo.png');
     document.getElementsByTagName('head')[0].appendChild(link);
   }, []);
 

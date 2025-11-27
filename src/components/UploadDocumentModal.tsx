@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import {
   XMarkIcon,
   DocumentArrowUpIcon,
@@ -92,23 +93,28 @@ export default function UploadDocumentModal({
       clearInterval(progressInterval);
 
       if (response.ok) {
+        const successMsg = `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`;
+        toast.success(successMsg);
         setUploadResult({
           success: true,
-          message: `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`,
+          message: successMsg,
         });
         setTimeout(() => onSuccess(), 1500);
       } else {
         const error = await response.json();
+        const errorMsg = error.error || "Error al subir los documentos";
+        toast.error(errorMsg);
         setUploadResult({
           success: false,
-          message: error.error || "Error al subir los documentos",
+          message: errorMsg,
         });
       }
     } catch (error) {
-      console.error("Error al subir archivos:", error);
+      const errorMsg = error instanceof Error ? error.message : "Error desconocido al subir los documentos";
+      toast.error(errorMsg);
       setUploadResult({
         success: false,
-        message: error instanceof Error ? error.message : "Error desconocido al subir los documentos",
+        message: errorMsg,
       });
     } finally {
       setIsUploading(false);

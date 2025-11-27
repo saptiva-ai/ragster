@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from "react-hot-toast";
 import { getWeaviateRecords, WeaviateRecord } from '@/lib/services/weaviate';
 import WeaviateRecordsTable from './WeaviateRecordsTable';
 import {
@@ -18,7 +19,8 @@ export default function WeaviateRecords() {
       setRecords(data);
       setError(null);
     } catch (err) {
-      console.error('Error fetching records:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error al cargar los registros';
+      toast.error(errorMessage);
       setError('Error al cargar los registros');
     } finally {
       setLoading(false);

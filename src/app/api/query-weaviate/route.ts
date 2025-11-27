@@ -4,6 +4,8 @@ import { connectToDatabase } from "@/lib/mongodb/client";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Cliente Weaviate (lazy initialization)
 let client: WeaviateClient | null = null;
@@ -52,13 +54,14 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 }
 
 // Busca en Weaviate usando nearVector
-async function searchInWeaviate(queryText: string) {
+async function searchInWeaviate(queryText: string, userId: string) {
   const weaviateClient = await getWeaviateClient();
   const collection = weaviateClient.collections.get("DocumentChunk");
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {
-    limit: 10, // Increased from 2 to 10 for better context coverage
+    limit: 10,
+    filters: weaviate.filter.byProperty("userId").equal(userId),
   });
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
@@ -68,11 +71,17 @@ export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
   const collectiondb = db.collection("messages");
 
-  let pregunta = "";
-  let history = "";
-  let response: { properties: { text?: string } }[] = [];
-
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    let pregunta = "";
+    let history = "";
+    let response: { properties: { text?: string } }[] = [];
+
     const body = await req.json();
 
     const {
@@ -93,9 +102,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Processing query: "${query}" from: ${contactName}`);
+    console.log(`Processing query: "${query}" from: ${contactName} (User: ${userId})`);
 
-    // Guardar mensaje en base de datos
+    // Guardar mensaje actual en base de datos
     await collectiondb.insertOne({
       message_id,
       message_role: "user",
@@ -104,26 +113,35 @@ export async function POST(req: NextRequest) {
       temperature: temperature,
       max_tokens: 1000,
       timestamp: new Date(),
-      contact_name: contactName, // Guardar el nombre aquí
+      contact_name: contactName,
+      user_id: userId,
     });
 
-    const messages = await collectiondb
-      .find({ message_id })
+    // Recuperar historial estructurado (últimos 6 mensajes = 3 turnos de intercambio aprox)
+    // Filtrando por message_id y user_id para seguridad y contexto correcto
+    const rawMessages = await collectiondb
+      .find({ message_id, user_id: userId })
       .sort({ _id: -1 })
-      .limit(5)
+      .limit(6) 
       .toArray();
 
-    if (messages.length > 1) {
-      pregunta = extraerPregunta(messages[1].message) || "";
-      console.log("Pregunta extraída:", pregunta);
+    // Ordenar cronológicamente (más antiguo primero) y excluir el mensaje actual que acabamos de insertar
+    // para no duplicarlo (ya que se envía como 'query' en generateText)
+    const historyMessages = rawMessages
+      .reverse()
+      .filter(msg => msg.message !== query) // Simple check to avoid duplication if DB is fast enough
+      .map((msg) => ({
+        role: msg.message_role,
+        content: msg.message,
+      }));
 
-      messages.reverse();
-      history = messages
-        .map(
-          (message) =>
-            `- Role: ${message.message_role} \n  - Mensaje: ${message.message}`
-        )
-        .join("\n");
+    // Lógica para preguntas ambiguas (mantener para RAG)
+    if (rawMessages.length > 1) {
+      // Buscar la última pregunta del usuario en el historial
+      const lastUserMsg = [...rawMessages].reverse().find(m => m.message_role === 'user' && m.message !== query);
+      if (lastUserMsg) {
+        pregunta = lastUserMsg.message; // Usar el mensaje completo en lugar de regex frágil
+      }
     }
 
     const ambiguous_words = [
@@ -150,12 +168,12 @@ export async function POST(req: NextRequest) {
     if (ambiguous_words.includes(normalizedQuery)) {
       console.log("Consulta ambigua detectada:", normalizedQuery);
       if (pregunta) {
-        response = (await searchInWeaviate(pregunta)) || [];
+        response = (await searchInWeaviate(pregunta, userId)) || [];
       } else {
         response = [];
       }
     } else {
-      response = (await searchInWeaviate(query)) || [];
+      response = (await searchInWeaviate(query, userId)) || [];
     }
 
     console.log("Response:", JSON.stringify(response, null, 2));
@@ -193,10 +211,7 @@ export async function POST(req: NextRequest) {
       9. No incluyas etiquetas como <think> o </think>.
       10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
 
-      Historial de conversación: "${history}"
-      Última pregunta enviada: "${pregunta}"
-      ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
-      Mensaje actual del usuario: "${query}"`;
+      ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}`;
 
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(
@@ -204,7 +219,9 @@ export async function POST(req: NextRequest) {
       prompt,
       query,
       modelId,
-      temperature || 0.3
+      temperature || 0.3,
+      1000,
+      historyMessages // Pasar historial estructurado
     );
 
     return NextResponse.json({

@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.10.0",
@@ -26,7 +27,6 @@
     "cheerio": "^1.0.0",
     "cookie": ">=0.7.0",
     "docx-parser": "^0.2.1",
-    "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "formidable": "^3.5.2",
     "fs-extra": "^11.3.0",
@@ -43,6 +43,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
+    "react-hot-toast": "^2.6.0",
     "tar-fs": ">=3.1.1",
     "tls": "^0.0.1",
     "uuid": "^11.1.0",
@@ -58,9 +59,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/webpack": "^5.28.5",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.14"
   }
 }

@@ -8,8 +8,8 @@ import {Providers} from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "RAGster - Consultas sobre documentos vectorizados",
-  description: "Plataforma para procesamiento de documentos, vectorización y consultas RAG",
+  title: "Saptiva - Intelligent Document Processing",
+  description: "Plataforma de inteligencia artificial para el procesamiento, análisis y gestión de documentos empresariales con RAG.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

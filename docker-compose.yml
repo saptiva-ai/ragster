@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  ragster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ragster_app
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/ragster
+      - MONGODB_DB=ragster
+      - WEAVIATE_HOST=weaviate:8080
+      - WEAVIATE_SCHEME=http
+      # These should be provided in a .env file or passed at runtime
+      - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}
+      - SAPTIVA_API_BASE_URL=${SAPTIVA_API_BASE_URL}
+      - EMBEDDING_API_URL=${EMBEDDING_API_URL}
+      - WEAVIATE_API_KEY=${WEAVIATE_API_KEY}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXT_PUBLIC_CHAT_API=${NEXT_PUBLIC_CHAT_API}
+    depends_on:
+      - mongo
+      - weaviate
+    networks:
+      - ragster_net
+
+  mongo:
+    image: mongo:6
+    container_name: ragster_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ragster_net
+
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    - --scheme
+    - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.26.1
+    container_name: ragster_weaviate
+    restart: always
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - ragster_net
+
+networks:
+  ragster_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  weaviate_data:
