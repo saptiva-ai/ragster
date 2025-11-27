@@ -61,7 +61,7 @@ async function searchInWeaviate(queryText: string, userId: string) {
 
   const result = await collection.query.nearVector(queryVector, {
     limit: 10,
-    filters: weaviate.Filters.byProperty("userId").equal(userId),
+    filters: weaviate.filter.byProperty("userId").equal(userId),
   });
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
