@@ -21,7 +21,8 @@ export class SaptivaService {
     query: string,
     model: string = DEFAULT_MODELS.CHAT,
     temperature: number = 0.7,
-    maxTokens: number = 1000
+    maxTokens: number = 1000,
+    history: { role: string; content: string }[] = []
   ): Promise<string> {
     try {
       const { db } = await connectToDatabase();
@@ -29,6 +30,7 @@ export class SaptivaService {
 
       const messages = [
         { role: "system", content: prompt },
+        ...history,
         { role: "user", content: query },
       ];
 

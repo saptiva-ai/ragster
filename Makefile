@@ -10,6 +10,7 @@ help:
 	@echo "  make build   - Rebuild docker images"
 	@echo "  make logs    - View logs from all services"
 	@echo "  make shell   - Enter the ragster app container shell"
+	@echo "  make test    - Run unit tests"
 	@echo "  make clean   - Stop services and remove volumes (WARNING: deletes data)"
 
 up:
@@ -26,6 +27,9 @@ logs:
 
 shell:
 	docker-compose exec ragster sh
+
+test:
+	npm test
 
 clean:
 	docker-compose down -v
