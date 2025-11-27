@@ -78,15 +78,20 @@ const TEXT_MIMES = [
   "text/markdown",
 ];
 
+// Extensions that should be treated as text (fallback when mime is octet-stream)
+const TEXT_EXTENSIONS = [".txt", ".json", ".md", ".markdown"];
+
 async function extractTextFromFile(
   buffer: ArrayBuffer,
   file: File
 ): Promise<string> {
   const mime = file.type;
   const nodeBuffer = Buffer.from(buffer);
+  const fileName = file.name.toLowerCase();
 
-  // Text files: direct read
-  if (TEXT_MIMES.includes(mime)) {
+  // Text files: direct read (check mime OR extension as fallback)
+  const isTextByExtension = TEXT_EXTENSIONS.some(ext => fileName.endsWith(ext));
+  if (TEXT_MIMES.includes(mime) || isTextByExtension) {
     return new TextDecoder("utf-8").decode(buffer);
   }
 
@@ -105,8 +110,15 @@ async function extractTextFromFile(
     const images = await pdfToImages(nodeBuffer);
     const texts: string[] = [];
 
-    for (const imgBuffer of images) {
-      const text = await saptivaService.ocrImage(imgBuffer, "image/png");
+    for (let i = 0; i < images.length; i++) {
+      const imgSize = (images[i].length / 1024).toFixed(2);
+      console.log(`Pagina ${i + 1}/${images.length} - Tamano: ${imgSize} KB`);
+
+      const start = Date.now();
+      const text = await saptivaService.ocrImage(images[i], "image/jpeg");
+      const duration = Date.now() - start;
+
+      console.log(`Pagina ${i + 1} completada en ${duration}ms`);
       texts.push(text);
     }
 

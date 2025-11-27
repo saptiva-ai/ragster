@@ -14,8 +14,8 @@ export async function pdfToImages(pdfBuffer: Buffer): Promise<Buffer[]> {
   for (let i = 0; i < pageCount; i++) {
     const page = doc.loadPage(i);
     const pixmap = page.toPixmap(mupdf.Matrix.scale(SCALE, SCALE), mupdf.ColorSpace.DeviceRGB);
-    const png = pixmap.asPNG();
-    images.push(Buffer.from(png));
+    const jpeg = pixmap.asJPEG(85);
+    images.push(Buffer.from(jpeg));
   }
 
   return images;
