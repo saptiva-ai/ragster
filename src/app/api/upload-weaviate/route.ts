@@ -12,26 +12,33 @@ interface Chunk {
   id: string;
 }
 
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
+// Cliente Weaviate (lazy initialization)
+let client: WeaviateClient | null = null;
 
-const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
-  process.env.WEAVIATE_HOST!,
-  {
-    authCredentials: new weaviate.ApiKey(weaviateApiKey),
+async function getWeaviateClient(): Promise<WeaviateClient> {
+  if (!client) {
+    client = await weaviate.connectToWeaviateCloud(
+      process.env.WEAVIATE_HOST!,
+      {
+        authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
+      }
+    );
   }
-);
+  return client;
+}
 
 // Asegúrate que la clase existe en Weaviate
 async function ensureWeaviateClassExists(className: string) {
+  const weaviateClient = await getWeaviateClient();
   // 1. Listar todas las colecciones/clases
-  const collections = await client.collections.listAll();
+  const collections = await weaviateClient.collections.listAll();
   const exists = collections.some(
     (col: { name: string }) => col.name === className
   );
 
   if (!exists) {
     console.log(`La colección ${className} no existe. Creando...`);
-    await client.collections.create({
+    await weaviateClient.collections.create({
       name: className,
       vectorizers: [],
       properties: [
@@ -205,7 +212,8 @@ async function insertDataToWeaviate(
   );
 
   try {
-    const resultsss = await client.collections
+    const weaviateClient = await getWeaviateClient();
+    const resultsss = await weaviateClient.collections
       .get("DocumentChunk")
       .data.insertMany(docsToInsert);
     console.log(

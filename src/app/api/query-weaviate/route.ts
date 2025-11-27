@@ -5,17 +5,20 @@ import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
 
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
-const embeddingApiUrl = process.env.EMBEDDING_API_URL!;
-const saptivaApiKey = process.env.SAPTIVA_API_KEY!;
+// Cliente Weaviate (lazy initialization)
+let client: WeaviateClient | null = null;
 
-// Cliente Weaviate
-const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
-  process.env.WEAVIATE_HOST!,
-  {
-    authCredentials: new weaviate.ApiKey(weaviateApiKey),
+async function getWeaviateClient(): Promise<WeaviateClient> {
+  if (!client) {
+    client = await weaviate.connectToWeaviateCloud(
+      process.env.WEAVIATE_HOST!,
+      {
+        authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
+      }
+    );
   }
-);
+  return client;
+}
 
 // Extrae pregunta de un texto
 function extraerPregunta(texto: string): string | null {
@@ -28,7 +31,7 @@ function extraerPregunta(texto: string): string | null {
 async function getCustomEmbedding(text: string): Promise<number[]> {
   // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
   const response = await axios.post(
-    embeddingApiUrl,
+    process.env.EMBEDDING_API_URL!,
     {
       model: MODEL_NAMES.EMBEDDING,
       prompt: text,
@@ -36,7 +39,7 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
     {
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${saptivaApiKey}`,
+        Authorization: `Bearer ${process.env.SAPTIVA_API_KEY!}`,
       },
     }
   );
@@ -50,7 +53,8 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 
 // Busca en Weaviate usando nearVector
 async function searchInWeaviate(queryText: string) {
-  const collection = client.collections.get("DocumentChunk");
+  const weaviateClient = await getWeaviateClient();
+  const collection = weaviateClient.collections.get("DocumentChunk");
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {
