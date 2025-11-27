@@ -51,7 +51,7 @@ export default function DocumentsPage() {
         const data = await response.json();
 
         if (data.success) {
-          if (data.fileExistsInDB === null) {
+          if (!data.fileExistsInDB) {
             setSources([]);
             setActionInProgress(false);
             return;

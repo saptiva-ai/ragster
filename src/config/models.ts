@@ -33,6 +33,9 @@ export const MODEL_NAMES = {
 
   // Embedding model
   EMBEDDING: "Saptiva Embed",
+
+  // OCR model (internal only)
+  OCR: "Saptiva OCR",
 } as const;
 
 // Default models (with environment variable overrides)

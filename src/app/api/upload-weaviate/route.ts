@@ -3,9 +3,10 @@ import mammoth from "mammoth";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import { SaptivaService } from "@/lib/services/saptiva";
+import { pdfToImages } from "@/lib/services/pdfToImages";
 
 interface Chunk {
   text: string;
@@ -62,35 +63,63 @@ async function ensureWeaviateClassExists(className: string) {
   }
 }
 
+// Image types that need OCR (PDF handled separately)
+const OCR_MIMES = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+];
+
+// File types that are already text
+const TEXT_MIMES = [
+  "text/plain",
+  "application/json",
+  "text/markdown",
+];
+
 async function extractTextFromFile(
   buffer: ArrayBuffer,
   file: File
 ): Promise<string> {
   const mime = file.type;
+  const nodeBuffer = Buffer.from(buffer);
 
-  if (mime === "application/pdf") {
-    // Convertir ArrayBuffer a Blob antes de pasar a PDFLoader
-    const pdfBlob = new Blob([buffer], { type: mime });
-    const loader = new PDFLoader(pdfBlob, {
-      splitPages: true, // Opcional, si quieres dividir por página
-    });
-    // Extraer texto del PDF
-    const docs = await loader.load();
-    return docs.map((doc) => doc.pageContent).join("\n");
+  // Text files: direct read
+  if (TEXT_MIMES.includes(mime)) {
+    return new TextDecoder("utf-8").decode(buffer);
   }
 
-  if (
-    mime ===
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    const result = await mammoth.extractRawText({
-      buffer: Buffer.from(buffer),
-    });
+  // DOCX: use mammoth
+  if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    const result = await mammoth.extractRawText({ buffer: nodeBuffer });
     return result.value || "";
   }
 
-  if (mime === "text/plain") {
-    return new TextDecoder("utf-8").decode(buffer);
+  // PDF: convert to images, OCR each page
+  if (mime === "application/pdf") {
+    const saptivaService = new SaptivaService(
+      process.env.SAPTIVA_API_KEY!,
+      process.env.SAPTIVA_API_BASE_URL
+    );
+    const images = await pdfToImages(nodeBuffer);
+    const texts: string[] = [];
+
+    for (const imgBuffer of images) {
+      const text = await saptivaService.ocrImage(imgBuffer, "image/png");
+      texts.push(text);
+    }
+
+    return texts.join("\n\n");
+  }
+
+  // Images: use Saptiva OCR directly
+  if (OCR_MIMES.includes(mime)) {
+    const saptivaService = new SaptivaService(
+      process.env.SAPTIVA_API_KEY!,
+      process.env.SAPTIVA_API_BASE_URL
+    );
+    return await saptivaService.ocrImage(nodeBuffer, mime);
   }
 
   throw new Error(`Tipo de archivo no soportado: ${mime}`);
