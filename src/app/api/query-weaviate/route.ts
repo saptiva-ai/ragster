@@ -4,6 +4,8 @@ import { connectToDatabase } from "@/lib/mongodb/client";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Cliente Weaviate (lazy initialization)
 let client: WeaviateClient | null = null;
@@ -52,13 +54,14 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 }
 
 // Busca en Weaviate usando nearVector
-async function searchInWeaviate(queryText: string) {
+async function searchInWeaviate(queryText: string, userId: string) {
   const weaviateClient = await getWeaviateClient();
   const collection = weaviateClient.collections.get("DocumentChunk");
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {
-    limit: 10, // Increased from 2 to 10 for better context coverage
+    limit: 10,
+    filters: weaviate.Filters.byProperty("userId").equal(userId),
   });
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
@@ -68,11 +71,17 @@ export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
   const collectiondb = db.collection("messages");
 
-  let pregunta = "";
-  let history = "";
-  let response: { properties: { text?: string } }[] = [];
-
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    let pregunta = "";
+    let history = "";
+    let response: { properties: { text?: string } }[] = [];
+
     const body = await req.json();
 
     const {
@@ -93,7 +102,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Processing query: "${query}" from: ${contactName}`);
+    console.log(`Processing query: "${query}" from: ${contactName} (User: ${userId})`);
 
     // Guardar mensaje en base de datos
     await collectiondb.insertOne({
@@ -105,6 +114,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 1000,
       timestamp: new Date(),
       contact_name: contactName, // Guardar el nombre aquí
+      user_id: userId, // Guardar el usuario que hizo la query
     });
 
     const messages = await collectiondb
@@ -150,12 +160,12 @@ export async function POST(req: NextRequest) {
     if (ambiguous_words.includes(normalizedQuery)) {
       console.log("Consulta ambigua detectada:", normalizedQuery);
       if (pregunta) {
-        response = (await searchInWeaviate(pregunta)) || [];
+        response = (await searchInWeaviate(pregunta, userId)) || [];
       } else {
         response = [];
       }
     } else {
-      response = (await searchInWeaviate(query)) || [];
+      response = (await searchInWeaviate(query, userId)) || [];
     }
 
     console.log("Response:", JSON.stringify(response, null, 2));
@@ -195,8 +205,8 @@ export async function POST(req: NextRequest) {
 
       Historial de conversación: "${history}"
       Última pregunta enviada: "${pregunta}"
-      ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
-      Mensaje actual del usuario: "${query}"`;
+      ${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}`;
+      // REMOVED: Mensaje actual del usuario: "${query}" to prevent prompt injection inside system prompt.
 
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(

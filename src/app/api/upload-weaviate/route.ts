@@ -6,6 +6,8 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 interface Chunk {
   text: string;
@@ -52,6 +54,7 @@ async function ensureWeaviateClassExists(className: string) {
         { name: "sourceNamespace", dataType: "text" },
         { name: "prevChunkIndex", dataType: "int" },
         { name: "nextChunkIndex", dataType: "int" },
+        { name: "userId", dataType: "text" },
       ],
     });
     // Esperar a que la colección esté disponible (opcional: reintentos)
@@ -150,7 +153,8 @@ async function insertDataToWeaviate(
   filename: string,
   file: File,
   formNamespace: string,
-  idUploadFile: import("mongodb").ObjectId
+  idUploadFile: import("mongodb").ObjectId,
+  userId: string
 ): Promise<void> {
   const { db } = await connectToDatabase();
   const fileColection = db.collection("file");
@@ -168,6 +172,7 @@ async function insertDataToWeaviate(
         sourceSize: file.size.toString(),
         uploadDate: new Date().toISOString(),
         sourceNamespace: formNamespace,
+        userId: userId,
       };
     })
   );
@@ -201,6 +206,7 @@ async function insertDataToWeaviate(
         sourceSize: item.sourceSize,
         uploadDate: item.uploadDate,
         sourceNamespace: item.sourceNamespace,
+        userId: item.userId,
       },
       vectors: embedding,
     });
@@ -258,6 +264,12 @@ async function processDocument(file: File) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const { db } = await connectToDatabase();
     const fileColection = db.collection("file");
 
@@ -315,6 +327,7 @@ export async function POST(req: NextRequest) {
           namespace: formNamespace,
           uploadDate: new Date(),
           status: 1,
+          userId: userId,
         });
 
         // Aquí se suben los datos a Weaviate
@@ -323,7 +336,8 @@ export async function POST(req: NextRequest) {
           filename,
           file,
           formNamespace,
-          idUploadFile.insertedId
+          idUploadFile.insertedId,
+          userId
         );
 
         processedFiles.push({
