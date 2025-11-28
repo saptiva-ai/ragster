@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+
+// Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
+export const dynamic = 'force-dynamic';
 import mammoth from "mammoth";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";

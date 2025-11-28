@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
@@ -40,9 +41,11 @@ export default function Navbar() {
         {/* Logo */}
         <div className="flex-shrink-0">
           <Link href="/" className="flex items-center">
-            <img
+            <Image
               src="/logo.png"
               alt="RAGster"
+              width={32}
+              height={32}
               className="h-8 w-auto object-contain"
             />
           </Link>

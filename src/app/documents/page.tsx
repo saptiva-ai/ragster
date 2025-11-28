@@ -25,6 +25,17 @@ type Source = {
   status: number;
 };
 
+type ApiFile = {
+  _id: string;
+  filename: string;
+  type: string;
+  size: string;
+  uploadDate: string;
+  vectorsUploaded: number;
+  namespace?: string;
+  status: number;
+};
+
 type ModalType = "document" | "text" | "url" | null;
 
 export default function DocumentsPage() {
@@ -59,7 +70,7 @@ export default function DocumentsPage() {
           }
 
           // Map MongoDB files to the Source format expected by the UI
-          const mappedFiles = data.files.map((file: any) => ({
+          const mappedFiles = data.files.map((file: ApiFile) => ({
             id: file._id,
             filename: file.filename,
             type: file.type,
