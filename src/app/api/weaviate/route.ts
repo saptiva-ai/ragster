@@ -48,15 +48,16 @@ export async function GET() {
 
     const data = Array.from(sourceMap.values());
 
-    const file = await fileColection.findOne({
+    // Get all files from MongoDB (not just one)
+    const files = await fileColection.find({
       status: { $in: [1, 2] },
-    });
+    }).toArray();
 
     return NextResponse.json({
       success: true,
       sources: data,
       fileIdFromWeaviate: data.length > 0 ? data[0].id : null,
-      fileExistsInDB: file,
+      files: files, // Return all files instead of just one
     });
   } catch (error) {
     console.error("Error al consultar:", error);

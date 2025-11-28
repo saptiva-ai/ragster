@@ -25,6 +25,17 @@ type Source = {
   status: number;
 };
 
+type ApiFile = {
+  _id: string;
+  filename: string;
+  type: string;
+  size: string;
+  uploadDate: string;
+  vectorsUploaded: number;
+  namespace?: string;
+  status: number;
+};
+
 type ModalType = "document" | "text" | "url" | null;
 
 export default function DocumentsPage() {
@@ -51,13 +62,26 @@ export default function DocumentsPage() {
         const data = await response.json();
 
         if (data.success) {
-          if (!data.fileExistsInDB) {
+          // Check if there are any files in MongoDB
+          if (!data.files || data.files.length === 0) {
             setSources([]);
             setActionInProgress(false);
             return;
           }
 
-          setSources([data.fileExistsInDB]);
+          // Map MongoDB files to the Source format expected by the UI
+          const mappedFiles = data.files.map((file: ApiFile) => ({
+            id: file._id,
+            filename: file.filename,
+            type: file.type,
+            size: file.size,
+            uploadDate: file.uploadDate,
+            vectorsUploaded: file.vectorsUploaded,
+            namespace: file.namespace,
+            status: file.status,
+          }));
+
+          setSources(mappedFiles);
           setActionInProgress(true);
         } else {
           throw new Error(data.error || "Error al cargar las fuentes");

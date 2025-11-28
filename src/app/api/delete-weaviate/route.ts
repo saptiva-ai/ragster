@@ -44,7 +44,7 @@ export async function DELETE(req: NextRequest) {
       collection.filter.byProperty("sourceName").equal(name),
     );
 
-    await fileColection.deleteMany({status: 2});
+    await fileColection.deleteOne({filename: name});
 
     return NextResponse.json(
       {
