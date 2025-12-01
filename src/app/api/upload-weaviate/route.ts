@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 import mammoth from "mammoth";
 import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
@@ -23,12 +23,9 @@ let client: WeaviateClient | null = null;
 
 async function getWeaviateClient(): Promise<WeaviateClient> {
   if (!client) {
-    client = await weaviate.connectToWeaviateCloud(
-      process.env.WEAVIATE_HOST!,
-      {
-        authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
-      }
-    );
+    client = await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
+      authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
+    });
   }
   return client;
 }
@@ -70,19 +67,10 @@ async function ensureWeaviateClassExists(className: string) {
 }
 
 // Image types that need OCR (PDF handled separately)
-const OCR_MIMES = [
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/webp",
-];
+const OCR_MIMES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 
 // File types that are already text
-const TEXT_MIMES = [
-  "text/plain",
-  "application/json",
-  "text/markdown",
-];
+const TEXT_MIMES = ["text/plain", "application/json", "text/markdown"];
 
 // Extensions that should be treated as text (fallback when mime is octet-stream)
 const TEXT_EXTENSIONS = [".txt", ".json", ".md", ".markdown"];
@@ -96,13 +84,18 @@ async function extractTextFromFile(
   const fileName = file.name.toLowerCase();
 
   // Text files: direct read (check mime OR extension as fallback)
-  const isTextByExtension = TEXT_EXTENSIONS.some(ext => fileName.endsWith(ext));
+  const isTextByExtension = TEXT_EXTENSIONS.some((ext) =>
+    fileName.endsWith(ext)
+  );
   if (TEXT_MIMES.includes(mime) || isTextByExtension) {
     return new TextDecoder("utf-8").decode(buffer);
   }
 
   // DOCX: use mammoth
-  if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+  if (
+    mime ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
     const result = await mammoth.extractRawText({ buffer: nodeBuffer });
     return result.value || "";
   }
@@ -192,6 +185,7 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
     throw error;
   }
 }
+
 async function insertDataToWeaviate(
   chunks: Chunk[],
   filename: string,
@@ -261,6 +255,8 @@ async function insertDataToWeaviate(
     JSON.stringify(docsToInsert, null, 2)
   );
 
+  await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
+
   try {
     const weaviateClient = await getWeaviateClient();
     const resultsss = await weaviateClient.collections
@@ -275,8 +271,6 @@ async function insertDataToWeaviate(
     console.error("Error al insertar en Weaviate:", error);
     throw error;
   }
-
-  await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
 }
 
 async function processDocument(file: File) {
@@ -306,6 +300,81 @@ async function processDocument(file: File) {
   };
 }
 
+async function fileRetrieval(
+  files: File[],
+  testMode: boolean,
+  formNamespace: string,
+  userId: string
+) {
+  const { db } = await connectToDatabase();
+  const fileColection = db.collection("file");
+
+  const processedFiles = [];
+
+  for (const file of files) {
+    // Aquí se guarda el archivo en MongoDB
+    const idUploadFile = await fileColection.insertOne({
+      filename: file.name,
+      size: file.size,
+      type: file.type,
+      chunks: null,
+      vectorsUploaded: null,
+      namespace: formNamespace,
+      uploadDate: new Date(),
+      status: 1,
+      userId: userId,
+    });
+    try {
+      const { chunks: rawChunks, filename } = await processDocument(file);
+      const chunks = await rawChunks.filter(
+        (chunk): chunk is Chunk => chunk !== null
+      );
+      console.log("chunks", chunks.length);
+
+      if (testMode) {
+        processedFiles.push({
+          filename,
+          size: file.size,
+          type: file.type,
+          chunks: chunks.length,
+        });
+        continue;
+      }
+
+      // Aquí se actualizan los chunks el archivo en MongoDB
+      await fileColection.updateOne(
+        { _id: idUploadFile.insertedId },
+        { $set: { chunks: chunks.length, vectorsUploaded: chunks.length } }
+      );
+
+      // Aquí se suben los datos a Weaviate
+      insertDataToWeaviate(
+        chunks,
+        filename,
+        file,
+        formNamespace,
+        idUploadFile.insertedId,
+        userId
+      );
+
+      processedFiles.push({
+        filename,
+        size: file.size,
+        type: file.type,
+        chunks: chunks.length,
+        vectorsUploaded: chunks.length,
+        namespace: formNamespace,
+      });
+    } catch (error) {
+      console.error(`Error procesando ${file.name}:`, error);
+      processedFiles.push({
+        filename: file.name,
+        error: error instanceof Error ? error.message : "Error desconocido",
+      });
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -313,9 +382,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-
-    const { db } = await connectToDatabase();
-    const fileColection = db.collection("file");
 
     const testMode = req.nextUrl.searchParams.get("test") === "true";
     const namespace = req.nextUrl.searchParams.get("namespace") || "default";
@@ -339,72 +405,12 @@ export async function POST(req: NextRequest) {
     await ensureWeaviateClassExists(className);
     console.log(`Clase ${className} asegurada en Weaviate.`);
 
-    const processedFiles = [];
-    let totalChunks = 0;
-
-    for (const file of files) {
-      try {
-        const { chunks: rawChunks, filename } = await processDocument(file);
-        const chunks = await rawChunks.filter(
-          (chunk): chunk is Chunk => chunk !== null
-        );
-        console.log("chunks", chunks.length);
-        totalChunks += chunks.length;
-
-        if (testMode) {
-          processedFiles.push({
-            filename,
-            size: file.size,
-            type: file.type,
-            chunks: chunks.length,
-          });
-          continue;
-        }
-
-        // Aquí se guarda el archivo en MongoDB
-        const idUploadFile = await fileColection.insertOne({
-          filename,
-          size: file.size,
-          type: file.type,
-          chunks: chunks.length,
-          vectorsUploaded: chunks.length,
-          namespace: formNamespace,
-          uploadDate: new Date(),
-          status: 1,
-          userId: userId,
-        });
-
-        // Aquí se suben los datos a Weaviate
-        insertDataToWeaviate(
-          chunks,
-          filename,
-          file,
-          formNamespace,
-          idUploadFile.insertedId,
-          userId
-        );
-
-        processedFiles.push({
-          filename,
-          size: file.size,
-          type: file.type,
-          chunks: chunks.length,
-          vectorsUploaded: chunks.length,
-          namespace: formNamespace,
-        });
-      } catch (error) {
-        console.error(`Error procesando ${file.name}:`, error);
-        processedFiles.push({
-          filename: file.name,
-          error: error instanceof Error ? error.message : "Error desconocido",
-        });
-      }
-    }
+    fileRetrieval(files, testMode, formNamespace, userId);
 
     return NextResponse.json({
       success: true,
-      message: `${files.length} archivos procesados. Total de chunks: ${totalChunks}.`,
-      processedFiles,
+      message: `${files.length} archivos procesados.`,
+      processedFiles: [],
     });
   } catch (error) {
     console.error("Error general:", error);

@@ -48,55 +48,70 @@ export default function DocumentsPage() {
 
   // Cargar la lista de fuentes
   useEffect(() => {
-    async function fetchSources() {
-      setIsLoading(true);
-      setError(null);
+    let interval: NodeJS.Timeout | null = null;
 
+    async function fetchSources() {
       try {
         const response = await fetch("/api/weaviate");
-
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-
         const data = await response.json();
 
-        if (data.success) {
-          // Check if there are any files in MongoDB
-          if (!data.files || data.files.length === 0) {
-            setSources([]);
-            setActionInProgress(false);
-            return;
-          }
-
-          // Map MongoDB files to the Source format expected by the UI
-          const mappedFiles = data.files.map((file: ApiFile) => ({
-            id: file._id,
-            filename: file.filename,
-            type: file.type,
-            size: file.size,
-            uploadDate: file.uploadDate,
-            vectorsUploaded: file.vectorsUploaded,
-            namespace: file.namespace,
-            status: file.status,
-          }));
-
-          setSources(mappedFiles);
-          setActionInProgress(true);
-        } else {
-          throw new Error(data.error || "Error al cargar las fuentes");
+        if (data.files.length === 0) {
+          setActionInProgress(false);
+          return false;
         }
+
+        console.log("Fuentes recibidas:", data.files);
+
+        const mappedFiles = data.files.map((file: ApiFile) => ({
+          id: file._id,
+          filename: file.filename,
+          type: file.type,
+          size: file.size,
+          uploadDate: file.uploadDate,
+          vectorsUploaded: file.vectorsUploaded,
+          namespace: file.namespace,
+          status: file.status,
+        }));
+
+        setSources(mappedFiles);
+        setActionInProgress(true);
+
+        const hasStatusOne = mappedFiles.some((f: Source) => f.status === 1);
+
+        return hasStatusOne;
       } catch (error) {
-        console.error("Error fetching sources:", error);
+        console.error("Error:", error);
         setError(error instanceof Error ? error.message : "Error desconocido");
-        setSources([]);
-      } finally {
-        setIsLoading(false);
+        return false;
       }
     }
 
-    fetchSources();
-  }, [refreshKey]); // Refrescar cuando cambie refreshKey
+    async function startInterval() {
+      // Revisamos al inicio
+      const hasStatusOne = await fetchSources();
+
+      if (!hasStatusOne) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Iniciar intervalo si hay archivos status 1
+      interval = setInterval(async () => {
+        const stillHasStatusOne = await fetchSources();
+
+        if (!stillHasStatusOne && interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      }, 30000);
+    }
+
+    startInterval();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [refreshKey]);
 
   // Función para eliminar una fuente
   const handleDeleteSource = async (id: string, name: string) => {
