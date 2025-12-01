@@ -6,10 +6,12 @@ import { sendMessageToWABA } from "@/lib/wab/sendMessage";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { from, text, type } = body;
     console.log("Recibida solicitud POST:", body);
+    const { from, text, type } = body;
 
     const query = text.body;
+
+    console.log(`Procesando consulta WABA: ${query}`);
 
     try {
       const { db } = await connectToDatabase();
@@ -41,27 +43,24 @@ export async function POST(req: NextRequest) {
         ? process.env.NEXT_PUBLIC_CHAT_API.slice(0, -1)
         : process.env.NEXT_PUBLIC_CHAT_API;
 
-      let responseBot = await fetch(
-        `${chatApiUrl}/api/query-weaviate`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-          body: JSON.stringify({
-            message_id: from,
-            query,
-            modelId: modelSettings?.data?.modelId ?? "",
-            temperature: modelSettings?.data?.temperature ?? 0.7,
-            systemPrompt:
-              modelSettings?.data?.systemPrompt ??
-              "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
-            source: "wab",
-            topK: 5,
-            contacts: body.contacts ?? [],
-          }),
+      let responseBot = await fetch(`${chatApiUrl}/api/query-weaviate`, {
+        headers: {
+          "Content-Type": "application/json",
         },
-      )
+        method: "POST",
+        body: JSON.stringify({
+          message_id: from,
+          query,
+          modelId: modelSettings?.data?.modelId ?? "",
+          temperature: modelSettings?.data?.temperature ?? 0.7,
+          systemPrompt:
+            modelSettings?.data?.systemPrompt ??
+            "Eres un asistente AI que responde preguntas basándose en los documentos proporcionados. Utiliza solo la información de las fuentes para responder. Si la respuesta no está en los documentos, dilo claramente.",
+          source: "wab",
+          topK: 5,
+          contacts: body.contacts ?? [],
+        }),
+      })
         .then((res) => {
           return res.text();
         })
@@ -72,6 +71,8 @@ export async function POST(req: NextRequest) {
             message: e,
           };
         });
+
+      console.log(`Respuesta del bot: ${responseBot}`);
 
       if (typeof responseBot === "string") {
         responseBot = JSON.parse(responseBot);
@@ -96,13 +97,17 @@ export async function POST(req: NextRequest) {
         response: response,
       });
     } catch (error) {
+      console.error(
+        "Error al procesar la solicitud:",
+        error instanceof Error ? error.message : error
+      );
       return NextResponse.json(
         {
           success: false,
           error: "Error al procesar la solicitud",
           details: error instanceof Error ? error.message : "Error desconocido",
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
   } catch (error) {
@@ -113,7 +118,7 @@ export async function POST(req: NextRequest) {
         error: "Error al procesar la solicitud",
         details: error instanceof Error ? error.message : "Error desconocido",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

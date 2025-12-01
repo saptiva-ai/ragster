@@ -9,14 +9,17 @@ export default withAuth(
     callbacks: {
       authorized: ({ req, token }) => {
         // Permitir acceso a las rutas /api/wab sin autenticación
-        if (req.nextUrl.pathname.startsWith("/api/wab")) {
+        if (
+          req.nextUrl.pathname.startsWith("/api/wab") ||
+          req.nextUrl.pathname.startsWith("/api/query-weaviate")
+        ) {
           return true;
         }
         // Requerir autenticación para todas las demás rutas
         return !!token;
       },
     },
-  },
+  }
 );
 
 export const config = {
@@ -26,6 +29,6 @@ export const config = {
     "/dashboard/:path*",
     //"/api/:path*",
     // Excluir rutas de autenticación y rutas públicas
-    "/((?!api/wab|auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|ico|webp)).*)",
+    "/((?!api/wab|api/query-weaviate|auth|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|ico|webp)).*)",
   ],
 };
