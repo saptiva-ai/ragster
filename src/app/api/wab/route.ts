@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
       let responseBot = await fetch(`${chatApiUrl}/api/query-weaviate`, {
         headers: {
           "Content-Type": "application/json",
+          "CF-Access-Client-Id": process.env.CF_ID || "",
+          "CF-Access-Client-Secret": process.env.CF_SECRET || "",
         },
         method: "POST",
         body: JSON.stringify({
