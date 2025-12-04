@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
 export const dynamic = "force-dynamic";
 import mammoth from "mammoth";
-import weaviate, { WeaviateClient } from "weaviate-client";
+import weaviate from "weaviate-ts-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import axios from "axios";
@@ -18,51 +18,39 @@ interface Chunk {
   id: string;
 }
 
-// Cliente Weaviate (lazy initialization)
-let client: WeaviateClient | null = null;
-
-async function getWeaviateClient(): Promise<WeaviateClient> {
-  if (!client) {
-    client = await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
-      authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
-    });
-  }
-  return client;
-}
+const client = weaviate.client({
+  scheme: "http",
+  host: "localhost:8080",
+});
 
 // Asegúrate que la clase existe en Weaviate
 async function ensureWeaviateClassExists(className: string) {
-  const weaviateClient = await getWeaviateClient();
-  // 1. Listar todas las colecciones/clases
-  const collections = await weaviateClient.collections.listAll();
-  const exists = collections.some(
-    (col: { name: string }) => col.name === className
-  );
+  const schema = await client.schema.getter().do();
+  const classExists = schema.classes?.some((cls) => cls.class === className);
 
-  if (!exists) {
-    console.log(`La colección ${className} no existe. Creando...`);
-    await weaviateClient.collections.create({
-      name: className,
-      vectorizers: [],
-      properties: [
-        { name: "text", dataType: "text" },
-        { name: "sourceName", dataType: "text" },
-        { name: "sourceType", dataType: "text" },
-        { name: "sourceSize", dataType: "text" },
-        { name: "uploadDate", dataType: "text" },
-        { name: "chunkIndex", dataType: "int" },
-        { name: "totalChunks", dataType: "int" },
-        { name: "sourceNamespace", dataType: "text" },
-        { name: "prevChunkIndex", dataType: "int" },
-        { name: "nextChunkIndex", dataType: "int" },
-        { name: "userId", dataType: "text" },
-      ],
-    });
-    // Esperar a que la colección esté disponible (opcional: reintentos)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log(`Colección ${className} creada.`);
+  if (!classExists) {
+    await client.schema
+      .classCreator()
+      .withClass({
+        class: className,
+        properties: [
+          { name: "text", dataType: ["text"] },
+          { name: "sourceName", dataType: ["text"] },
+          { name: "sourceType", dataType: ["text"] },
+          { name: "sourceSize", dataType: ["text"] },
+          { name: "uploadDate", dataType: ["text"] },
+          { name: "chunkIndex", dataType: ["int"] },
+          { name: "totalChunks", dataType: ["int"] },
+          { name: "sourceNamespace", dataType: ["text"] },
+          { name: "prevChunkIndex", dataType: ["int"] },
+          { name: "nextChunkIndex", dataType: ["int"] },
+          { name: "userId", dataType: ["text"] },
+        ],
+      })
+      .do();
+    console.log(`Clase ${className} creada en Weaviate.`);
   } else {
-    console.log(`La colección ${className} ya existe.`);
+    console.log(`La clase ${className} ya existe en Weaviate.`);
   }
 }
 
@@ -217,22 +205,37 @@ async function insertDataToWeaviate(
 
   // Changed from Promise.all (parallel) to sequential processing
   // This prevents rate limiting by SAPTIVA API when processing multiple chunks
-  const docsToInsert = [];
+  const docsToInsert: {
+    properties: {
+      text: string;
+      chunkIndex: number;
+      totalChunks: number;
+      prevChunkIndex: number | null;
+      nextChunkIndex: number | null;
+      sourceName: string;
+      sourceType: string;
+      sourceSize: string;
+      uploadDate: string;
+      sourceNamespace: string;
+      userId: string;
+    };
+    vector: number[];
+  }[] = [];
+
+  const BATCH_SIZE = 10;
+  let batch = [];
 
   for (let i = 0; i < enrichedChunks.length; i++) {
     const item = enrichedChunks[i];
 
-    // Add 500ms delay between requests to avoid overwhelming the API
-    // Skip delay for first chunk to start immediately
     if (i > 0) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    // Generate embedding for this chunk
     const embedding = await getCustomEmbedding(item.text);
 
-    // Build document object with properties and vectors
-    docsToInsert.push({
+    batch.push({
+      class: "DocumentChunk",
       properties: {
         text: item.text,
         chunkIndex: item.chunkIndex,
@@ -246,8 +249,21 @@ async function insertDataToWeaviate(
         sourceNamespace: item.sourceNamespace,
         userId: item.userId,
       },
-      vectors: embedding,
+      vector: embedding,
     });
+
+    // Si batch está lleno o si es el final
+    if (batch.length === BATCH_SIZE || i === enrichedChunks.length - 1) {
+      const batcher = client.batch.objectsBatcher();
+
+      batch.forEach((obj) => batcher.withObject(obj));
+
+      const weviateResult = await batcher.do();
+
+      console.log("Batch insertado:", JSON.stringify(weviateResult, null, 2));
+
+      batch = []; // reset batch
+    }
   }
 
   console.log(
@@ -256,21 +272,6 @@ async function insertDataToWeaviate(
   );
 
   await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
-
-  try {
-    const weaviateClient = await getWeaviateClient();
-    const resultsss = await weaviateClient.collections
-      .get("DocumentChunk")
-      .data.insertMany(docsToInsert);
-    console.log(
-      "Resultado de la inserción en Weaviate:",
-      JSON.stringify(resultsss, null, 2)
-    );
-    console.log("Insert exitoso en Weaviate. Total:", docsToInsert.length);
-  } catch (error) {
-    console.error("Error al insertar en Weaviate:", error);
-    throw error;
-  }
 }
 
 async function processDocument(file: File) {

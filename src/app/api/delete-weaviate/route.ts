@@ -1,50 +1,38 @@
-import {NextRequest, NextResponse} from "next/server";
-import weaviate, {WeaviateClient} from "weaviate-client";
-import {connectToDatabase} from "@/lib/mongodb/client";
-
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
+import { NextRequest, NextResponse } from "next/server";
+import weaviate from "weaviate-ts-client";
+import { connectToDatabase } from "@/lib/mongodb/client";
 
 export async function DELETE(req: NextRequest) {
-  const {db} = await connectToDatabase();
+  const client = weaviate.client({
+    scheme: "http",
+    host: "localhost:8080",
+  });
+
+  const { db } = await connectToDatabase();
   const fileColection = db.collection("file");
 
   try {
     const body = await req.json();
-    const {name} = body;
+    const { name } = body;
 
     if (!name) {
       return NextResponse.json(
-        {error: "Se requiere el Name para eliminar la fuente"},
-        {status: 400},
+        { error: "Se requiere el Name para eliminar la fuente" },
+        { status: 400 }
       );
     }
 
-    const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
-      process.env.WEAVIATE_HOST!,
-      {
-        authCredentials: new weaviate.ApiKey(weaviateApiKey),
-      },
-    );
+    const delete_collection = await client.batch
+      .objectsBatchDeleter()
+      .withClassName("DocumentChunk")
+      .withWhere({
+        path: ["sourceName"],
+        operator: "Equal",
+        valueText: name,
+      })
+      .do();
 
-    const collection = await client.collections.get("DocumentChunk");
-
-    console.log(
-      "Colección DocumentChunk:",
-      JSON.stringify(collection, null, 2),
-    );
-
-    if (!collection) {
-      return NextResponse.json(
-        {error: "No se encontró la colección en Weaviate"},
-        {status: 404},
-      );
-    }
-
-    const delete_collection = await collection.data.deleteMany(
-      collection.filter.byProperty("sourceName").equal(name),
-    );
-
-    await fileColection.deleteOne({filename: name});
+    await fileColection.deleteOne({ filename: name });
 
     return NextResponse.json(
       {
@@ -52,7 +40,7 @@ export async function DELETE(req: NextRequest) {
         message: "Fuente eliminada correctamente",
         data: delete_collection,
       },
-      {status: 200},
+      { status: 200 }
     );
   } catch (error) {
     console.error("Error al eliminar la fuente:", error);
@@ -63,7 +51,7 @@ export async function DELETE(req: NextRequest) {
             ? error.message
             : "Error al procesar la solicitud",
       },
-      {status: 500},
+      { status: 500 }
     );
   }
 }
