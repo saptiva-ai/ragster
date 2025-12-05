@@ -1,71 +1,60 @@
-import {NextRequest, NextResponse} from "next/server";
-import {connectToDatabase} from "@/lib/mongodb/client";
-import {weaviateClient} from "@/lib/services/weaviate-client";
-import {getServerSession} from "next-auth";
-import {authOptions} from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { connectToDatabase } from "@/lib/mongodb/client";
+import { weaviateClient } from "@/lib/services/weaviate-client";
 
+/**
+ * DELETE /api/delete-weaviate
+ * Delete a document source and its chunks from Weaviate.
+ */
 export async function DELETE(req: NextRequest) {
-  const {db} = await connectToDatabase();
-  const fileColection = db.collection("file");
-
   try {
-    // Get user from session for collection isolation
+    // 1. Authentication
     const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
-      return NextResponse.json({error: "Unauthorized"}, {status: 401});
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
 
+    // 2. Parse request
     const body = await req.json();
-    const {name} = body;
+    const { name } = body;
 
     if (!name) {
       return NextResponse.json(
-        {error: "Se requiere el Name para eliminar la fuente"},
-        {status: 400},
+        { error: "Source name is required" },
+        { status: 400 }
       );
     }
 
-    // Use user-specific collection for data isolation
+    console.log(`[Delete] Deleting source: ${name} for user: ${userId}`);
+
+    // 3. Delete from Weaviate
     const collection = await weaviateClient.getUserCollection(userId);
-    const collectionName = weaviateClient.getUserCollectionName(userId);
-
-    console.log(
-      `User collection ${collectionName}:`,
-      JSON.stringify(collection, null, 2),
+    const deleteResult = await collection.data.deleteMany(
+      collection.filter.byProperty("sourceName").equal(name)
     );
 
-    if (!collection) {
-      return NextResponse.json(
-        {error: "No se encontró la colección en Weaviate"},
-        {status: 404},
-      );
-    }
+    // 4. Delete from MongoDB
+    const { db } = await connectToDatabase();
+    await db.collection("file").deleteOne({ filename: name, userId });
 
-    const delete_collection = await collection.data.deleteMany(
-      collection.filter.byProperty("sourceName").equal(name),
-    );
+    console.log(`[Delete] Deleted source: ${name}`);
 
-    await fileColection.deleteOne({filename: name});
+    return NextResponse.json({
+      success: true,
+      message: "Source deleted successfully",
+      data: deleteResult,
+    });
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Fuente eliminada correctamente",
-        data: delete_collection,
-      },
-      {status: 200},
-    );
   } catch (error) {
-    console.error("Error al eliminar la fuente:", error);
+    console.error("[Delete] Error:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Error al procesar la solicitud",
+        error: error instanceof Error ? error.message : "Error processing request",
       },
-      {status: 500},
+      { status: 500 }
     );
   }
 }

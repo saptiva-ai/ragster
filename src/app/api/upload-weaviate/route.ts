@@ -1,346 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { connectToDatabase } from "@/lib/mongodb/client";
+import { weaviateClient } from "@/lib/services/weaviate-client";
+import { getDocumentProcessor } from "@/lib/services/document-processor";
 
 // Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
 export const dynamic = "force-dynamic";
-import mammoth from "mammoth";
-import { connectToDatabase } from "@/lib/mongodb/client";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import axios from "axios";
-import { MODEL_NAMES } from "@/config/models";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { SaptivaService } from "@/lib/services/saptiva";
-import { pdfToImages } from "@/lib/services/pdfToImages";
-import { weaviateClient } from "@/lib/services/weaviate-client";
 
-interface Chunk {
-  text: string;
-  id: string;
-}
-
-// Image types that need OCR (PDF handled separately)
-const OCR_MIMES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-
-// File types that are already text
-const TEXT_MIMES = ["text/plain", "application/json", "text/markdown"];
-
-// Extensions that should be treated as text (fallback when mime is octet-stream)
-const TEXT_EXTENSIONS = [".txt", ".json", ".md", ".markdown"];
-
-async function extractTextFromFile(
-  buffer: ArrayBuffer,
-  file: File
-): Promise<string> {
-  const mime = file.type;
-  const nodeBuffer = Buffer.from(buffer);
-  const fileName = file.name.toLowerCase();
-
-  // Text files: direct read (check mime OR extension as fallback)
-  const isTextByExtension = TEXT_EXTENSIONS.some((ext) =>
-    fileName.endsWith(ext)
-  );
-  if (TEXT_MIMES.includes(mime) || isTextByExtension) {
-    return new TextDecoder("utf-8").decode(buffer);
-  }
-
-  // DOCX: use mammoth
-  if (
-    mime ===
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    const result = await mammoth.extractRawText({ buffer: nodeBuffer });
-    return result.value || "";
-  }
-
-  // PDF: convert to images, OCR each page
-  if (mime === "application/pdf") {
-    const saptivaService = new SaptivaService(
-      process.env.SAPTIVA_API_KEY!,
-      process.env.SAPTIVA_API_BASE_URL
-    );
-    const images = await pdfToImages(nodeBuffer);
-    const texts: string[] = [];
-
-    for (let i = 0; i < images.length; i++) {
-      const imgSize = (images[i].length / 1024).toFixed(2);
-      console.log(`Pagina ${i + 1}/${images.length} - Tamano: ${imgSize} KB`);
-
-      const start = Date.now();
-      const text = await saptivaService.ocrImage(images[i], "image/jpeg");
-      const duration = Date.now() - start;
-
-      console.log(`Pagina ${i + 1} completada en ${duration}ms`);
-      texts.push(text);
-    }
-
-    return texts.join("\n\n");
-  }
-
-  // Images: use Saptiva OCR directly
-  if (OCR_MIMES.includes(mime)) {
-    const saptivaService = new SaptivaService(
-      process.env.SAPTIVA_API_KEY!,
-      process.env.SAPTIVA_API_BASE_URL
-    );
-    return await saptivaService.ocrImage(nodeBuffer, mime);
-  }
-
-  throw new Error(`Tipo de archivo no soportado: ${mime}`);
-}
-
-async function getCustomEmbedding(text: string): Promise<number[]> {
-  const embeddingUrl = process.env.EMBEDDING_API_URL;
-  if (!embeddingUrl) {
-    throw new Error(
-      "EMBEDDING_API_URL no esta definido en variables de entorno .env"
-    );
-  }
-
-  try {
-    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
-    const response = await axios.post(
-      embeddingUrl,
-      {
-        model: MODEL_NAMES.EMBEDDING,
-        prompt: text,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.SAPTIVA_API_KEY}`,
-        },
-        timeout: 30000, // 30 segundos
-      }
-    );
-
-    console.log("Embedding response:", response.data);
-
-    if (
-      !response.data ||
-      !response.data.embeddings ||
-      !Array.isArray(response.data.embeddings)
-    ) {
-      throw new Error("Invalid embedding response format");
-    }
-
-    return response.data.embeddings;
-  } catch (error) {
-    console.error("Error fetching embedding:", error);
-    // Log the actual API error response for debugging
-    if (axios.isAxiosError(error) && error.response) {
-      console.error("API Error Response:", {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data,
-      });
-    }
-    throw error;
-  }
-}
-
-async function insertDataToWeaviate(
-  chunks: Chunk[],
-  filename: string,
-  file: File,
-  formNamespace: string,
-  idUploadFile: import("mongodb").ObjectId,
-  userId: string
-): Promise<void> {
-  const { db } = await connectToDatabase();
-  const fileColection = db.collection("file");
-
-  const enrichedChunks = await Promise.all(
-    chunks.map(async (item, index) => {
-      return {
-        ...item,
-        chunkIndex: index + 1,
-        totalChunks: chunks.length,
-        prevChunkIndex: index > 0 ? index : null,
-        nextChunkIndex: index < chunks.length - 1 ? index + 2 : null,
-        sourceName: filename,
-        sourceType: file.type,
-        sourceSize: file.size.toString(),
-        uploadDate: new Date().toISOString(),
-        sourceNamespace: formNamespace,
-        userId: userId,
-      };
-    })
-  );
-
-  // Changed from Promise.all (parallel) to sequential processing
-  // This prevents rate limiting by SAPTIVA API when processing multiple chunks
-  const docsToInsert = [];
-
-  for (let i = 0; i < enrichedChunks.length; i++) {
-    const item = enrichedChunks[i];
-
-    // Add 500ms delay between requests to avoid overwhelming the API
-    // Skip delay for first chunk to start immediately
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    // Generate embedding for this chunk
-    const embedding = await getCustomEmbedding(item.text);
-
-    // Build document object with properties and vectors
-    docsToInsert.push({
-      properties: {
-        text: item.text,
-        chunkIndex: item.chunkIndex,
-        totalChunks: item.totalChunks,
-        prevChunkIndex: item.prevChunkIndex,
-        nextChunkIndex: item.nextChunkIndex,
-        sourceName: item.sourceName,
-        sourceType: item.sourceType,
-        sourceSize: item.sourceSize,
-        uploadDate: item.uploadDate,
-        sourceNamespace: item.sourceNamespace,
-        userId: item.userId,
-      },
-      vectors: embedding,
-    });
-  }
-
-  console.log(
-    "Docs a insertar en Weaviate:",
-    JSON.stringify(docsToInsert, null, 2)
-  );
-
-  await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
-
-  try {
-    // Use user-specific collection for data isolation
-    const collection = await weaviateClient.getUserCollection(userId);
-    const resultsss = await collection.data.insertMany(docsToInsert);
-    console.log(
-      "Resultado de la inserción en Weaviate:",
-      JSON.stringify(resultsss, null, 2)
-    );
-    console.log("Insert exitoso en Weaviate. Total:", docsToInsert.length);
-  } catch (error) {
-    console.error("Error al insertar en Weaviate:", error);
-    throw error;
-  }
-}
-
-async function processDocument(file: File) {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const text = await extractTextFromFile(buffer.buffer, file);
-
-  // Divide el texto en chunks usando RecursiveCharacterTextSplitter
-  const textSplitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-  });
-
-  const splitTexts = await textSplitter.splitText(text.trim());
-
-  const chunks = splitTexts.map((chunk, index) => ({
-    text: chunk,
-    id: `${file.name}-chunk-${index + 1}`,
-  }));
-
-  console.log(
-    `Archivo ${file.name} procesado. Total de chunks: ${chunks.length}`
-  );
-
-  return {
-    chunks,
-    filename: file.name,
-  };
-}
-
-async function fileRetrieval(
-  files: File[],
-  testMode: boolean,
-  formNamespace: string,
-  userId: string
-): Promise<Array<Record<string, unknown>>> {
-  const { db } = await connectToDatabase();
-  const fileColection = db.collection("file");
-
-  const processedFiles = [];
-
-  for (const file of files) {
-    // Aquí se guarda el archivo en MongoDB
-    const idUploadFile = await fileColection.insertOne({
-      filename: file.name,
-      size: file.size,
-      type: file.type,
-      chunks: null,
-      vectorsUploaded: null,
-      namespace: formNamespace,
-      uploadDate: new Date(),
-      status: 1,
-      userId: userId,
-    });
-    try {
-      const { chunks: rawChunks, filename } = await processDocument(file);
-      const chunks = await rawChunks.filter(
-        (chunk): chunk is Chunk => chunk !== null
-      );
-      console.log("chunks", chunks.length);
-
-      if (testMode) {
-        processedFiles.push({
-          filename,
-          size: file.size,
-          type: file.type,
-          chunks: chunks.length,
-        });
-        continue;
-      }
-
-      // Aquí se actualizan los chunks el archivo en MongoDB
-      await fileColection.updateOne(
-        { _id: idUploadFile.insertedId },
-        { $set: { chunks: chunks.length, vectorsUploaded: chunks.length } }
-      );
-
-      // Aquí se suben los datos a Weaviate
-      await insertDataToWeaviate(
-        chunks,
-        filename,
-        file,
-        formNamespace,
-        idUploadFile.insertedId,
-        userId
-      );
-
-      processedFiles.push({
-        filename,
-        size: file.size,
-        type: file.type,
-        chunks: chunks.length,
-        vectorsUploaded: chunks.length,
-        namespace: formNamespace,
-      });
-    } catch (error) {
-      console.error(`Error procesando ${file.name}:`, error);
-      processedFiles.push({
-        filename: file.name,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      });
-    }
-  }
-
-  return processedFiles;
-}
-
+/**
+ * POST /api/upload-weaviate
+ * Upload and process documents into Weaviate vector store.
+ */
 export async function POST(req: NextRequest) {
   try {
+    // 1. Authentication
     const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
 
+    // 2. Parse request
     const testMode = req.nextUrl.searchParams.get("test") === "true";
     const namespace = req.nextUrl.searchParams.get("namespace") || "default";
     const formData = await req.formData();
-    let files = formData.getAll("file") as File[];
 
+    let files = formData.getAll("file") as File[];
     if (!files || files.length === 0) {
       files = formData.getAll("files") as File[];
     }
@@ -349,28 +35,126 @@ export async function POST(req: NextRequest) {
 
     if (!files || files.length === 0) {
       return NextResponse.json(
-        { error: "No se proporcionaron archivos" },
+        { error: "No files provided" },
         { status: 400 }
       );
     }
 
-    // Ensure user-specific collection exists for data isolation
+    // 3. Ensure user collection exists in Weaviate
     const userCollectionName = await weaviateClient.ensureUserCollectionExists(userId);
-    console.log(`User collection ${userCollectionName} ready in Weaviate.`);
+    console.log(`[Upload] User collection ${userCollectionName} ready`);
 
-    const processedFiles = await fileRetrieval(files, testMode, formNamespace, userId);
+    // 4. Process each file
+    const { db } = await connectToDatabase();
+    const fileCollection = db.collection("file");
+    const processor = getDocumentProcessor();
+    const processedFiles = [];
+
+    for (const file of files) {
+      // Create file record in MongoDB
+      const fileRecord = await fileCollection.insertOne({
+        filename: file.name,
+        size: file.size,
+        type: file.type,
+        chunks: null,
+        vectorsUploaded: null,
+        namespace: formNamespace,
+        uploadDate: new Date(),
+        status: 1, // processing
+        userId: userId,
+      });
+
+      try {
+        // Process document (extract → chunk → embed)
+        const result = await processor.process(
+          file,
+          { userId, namespace: formNamespace }
+        );
+
+        console.log(`[Upload] ${file.name}: ${result.stats.totalChunks} chunks in ${result.stats.processingTimeMs}ms`);
+
+        // Test mode: skip Weaviate insertion
+        if (testMode) {
+          processedFiles.push({
+            filename: file.name,
+            size: file.size,
+            type: file.type,
+            chunks: result.stats.totalChunks,
+          });
+          continue;
+        }
+
+        // Build Weaviate documents
+        const docsToInsert = result.chunks.map((chunk, index) => ({
+          properties: {
+            text: chunk.content,
+            chunkIndex: index + 1,
+            totalChunks: result.stats.totalChunks,
+            prevChunkIndex: index > 0 ? index : null,
+            nextChunkIndex: index < result.stats.totalChunks - 1 ? index + 2 : null,
+            sourceName: file.name,
+            sourceType: file.type,
+            sourceSize: file.size.toString(),
+            uploadDate: result.metadata.uploadDate,
+            sourceNamespace: formNamespace,
+            userId: userId,
+          },
+          vectors: chunk.embedding,
+        }));
+
+        // Insert into Weaviate
+        const collection = await weaviateClient.getUserCollection(userId);
+        await collection.data.insertMany(docsToInsert);
+        console.log(`[Upload] Inserted ${docsToInsert.length} chunks into Weaviate`);
+
+        // Update MongoDB status
+        await fileCollection.updateOne(
+          { _id: fileRecord.insertedId },
+          {
+            $set: {
+              chunks: result.stats.totalChunks,
+              vectorsUploaded: result.stats.totalChunks,
+              status: 2 // completed
+            }
+          }
+        );
+
+        processedFiles.push({
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          chunks: result.stats.totalChunks,
+          vectorsUploaded: result.stats.totalChunks,
+          namespace: formNamespace,
+          processingTimeMs: result.stats.processingTimeMs,
+        });
+
+      } catch (error) {
+        console.error(`[Upload] Error processing ${file.name}:`, error);
+
+        // Update MongoDB with error status
+        await fileCollection.updateOne(
+          { _id: fileRecord.insertedId },
+          { $set: { status: -1, error: error instanceof Error ? error.message : "Unknown error" } }
+        );
+
+        processedFiles.push({
+          filename: file.name,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: `${files.length} archivos procesados.`,
+      message: `${files.length} files processed`,
       processedFiles,
     });
+
   } catch (error) {
-    console.error("Error general:", error);
+    console.error("[Upload] Error:", error);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Error al procesar",
-      },
+      { error: error instanceof Error ? error.message : "Processing failed" },
       { status: 500 }
     );
   }

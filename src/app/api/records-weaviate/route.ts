@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import axios from "axios";
-import { MODEL_NAMES } from "@/config/models";
-import { weaviateClient } from "@/lib/services/weaviate-client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { weaviateClient } from "@/lib/services/weaviate-client";
+import { getSaptivaEmbedder } from "@/lib/services/embedders/saptiva-embedder";
 
-// ➕ POST: Crear nuevo registro manualmente
+/**
+ * POST /api/records-weaviate
+ * Create a new manual record.
+ */
 export async function POST(request: Request) {
   try {
-    // Auth: Get current user from session
+    // 1. Authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -18,45 +20,24 @@ export async function POST(request: Request) {
     }
     const userId = session.user.id;
 
+    // 2. Parse request
     const { text } = await request.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
-        { success: false, error: "Texto faltante para generar vector" },
+        { success: false, error: "Text is required" },
         { status: 400 }
       );
     }
 
-    // Ensure user collection exists and get it
+    // 3. Ensure collection exists and generate embedding
     await weaviateClient.ensureUserCollectionExists(userId);
     const collection = await weaviateClient.getUserCollection(userId);
 
-    // 🧠 Embedding con SAPTIVA
-    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
-    const embeddingResponse = await axios.post(
-      process.env.EMBEDDING_API_URL!,
-      {
-        model: MODEL_NAMES.EMBEDDING,
-        prompt: text,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.SAPTIVA_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const embedder = getSaptivaEmbedder();
+    const embeddingResult = await embedder.embed(text);
 
-    if (
-      !embeddingResponse.data ||
-      !Array.isArray(embeddingResponse.data.embeddings)
-    ) {
-      throw new Error("Respuesta de embedding inválida");
-    }
-
-    const vector = embeddingResponse.data.embeddings;
-
-    // 🎯 Estructura unificada de propiedades
+    // 4. Insert into Weaviate
     const properties = {
       sourceName: "Manual",
       uploadDate: new Date().toISOString(),
@@ -66,30 +47,33 @@ export async function POST(request: Request) {
       sourceSize: text.length.toString(),
       sourceNamespace: "default",
       text: text.trim(),
+      userId,
     };
 
-    const result = await collection.data.insert({
+    await collection.data.insert({
       properties,
-      vectors: vector,
+      vectors: embeddingResult.embedding,
     });
 
-    console.log("✅ Registro creado correctamente en Weaviate:", result);
+    console.log("[Records] Created manual record");
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("❌ Error al crear registro en Weaviate:", error);
+    console.error("[Records] Error creating record:", error);
     return NextResponse.json(
-      { success: false, error: "Error al crear el registro" },
+      { success: false, error: "Error creating record" },
       { status: 500 }
     );
   }
 }
 
-
-// 🔍 GET: Obtener registros existentes
+/**
+ * GET /api/records-weaviate
+ * Get all records for the current user.
+ */
 export async function GET() {
   try {
-    // Auth: Get current user from session
+    // 1. Authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -99,11 +83,11 @@ export async function GET() {
     }
     const userId = session.user.id;
 
-    // Get user-specific collection
+    // 2. Fetch records from Weaviate
     const collection = await weaviateClient.getUserCollection(userId);
     const response = await collection.query.fetchObjects({ limit: 10000 });
 
-    if (!response || !response.objects || response.objects.length === 0) {
+    if (!response?.objects?.length) {
       return NextResponse.json({ success: true, records: [] });
     }
 
@@ -114,19 +98,22 @@ export async function GET() {
 
     return NextResponse.json({ success: true, records });
   } catch (error) {
-    console.error("❌ Error obteniendo registros de Weaviate:", error);
+    console.error("[Records] Error fetching records:", error);
     return NextResponse.json({
       success: false,
-      error: "Error al obtener registros",
+      error: "Error fetching records",
       records: [],
     });
   }
 }
 
-// ✏️ PUT: Actualizar registro existente
+/**
+ * PUT /api/records-weaviate
+ * Update an existing record.
+ */
 export async function PUT(request: Request) {
   try {
-    // Auth: Get current user from session
+    // 1. Authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -136,59 +123,46 @@ export async function PUT(request: Request) {
     }
     const userId = session.user.id;
 
+    // 2. Parse request
     const { id, properties } = await request.json();
 
     if (!id || typeof properties?.text !== "string") {
       return NextResponse.json(
-        { success: false, error: "ID o texto faltante" },
+        { success: false, error: "ID and text are required" },
         { status: 400 }
       );
     }
 
-    // Get user-specific collection
+    // 3. Generate new embedding and update
     const collection = await weaviateClient.getUserCollection(userId);
+    const embedder = getSaptivaEmbedder();
+    const embeddingResult = await embedder.embed(properties.text);
 
-    // 🔁 Obtener nuevo vector desde SAPTIVA
-    // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
-    const embeddingResponse = await axios.post(
-      process.env.EMBEDDING_API_URL!,
-      {
-        model: MODEL_NAMES.EMBEDDING,
-        prompt: properties.text,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.SAPTIVA_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    await collection.data.update({
+      id,
+      properties,
+      vectors: embeddingResult.embedding,
+    });
 
-    if (
-      !embeddingResponse.data ||
-      !Array.isArray(embeddingResponse.data.embeddings)
-    ) {
-      throw new Error("Respuesta de embedding inválida");
-    }
-
-    const vector = embeddingResponse.data.embeddings;
-
-    await collection.data.update({ id, properties, vectors: vector });
+    console.log(`[Records] Updated record: ${id}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("❌ Error actualizando registro:", error);
+    console.error("[Records] Error updating record:", error);
     return NextResponse.json(
-      { success: false, error: "Error al actualizar registro" },
+      { success: false, error: "Error updating record" },
       { status: 500 }
     );
   }
 }
 
-// 🗑️ DELETE: Eliminar registro
+/**
+ * DELETE /api/records-weaviate
+ * Delete a record by ID.
+ */
 export async function DELETE(request: Request) {
   try {
-    // Auth: Get current user from session
+    // 1. Authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -198,17 +172,19 @@ export async function DELETE(request: Request) {
     }
     const userId = session.user.id;
 
+    // 2. Parse request and delete
     const { id } = await request.json();
 
-    // Get user-specific collection
     const collection = await weaviateClient.getUserCollection(userId);
     await collection.data.deleteById(id);
 
+    console.log(`[Records] Deleted record: ${id}`);
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("❌ Error eliminando registro:", error);
+    console.error("[Records] Error deleting record:", error);
     return NextResponse.json(
-      { success: false, error: "Error al eliminar registro" },
+      { success: false, error: "Error deleting record" },
       { status: 500 }
     );
   }

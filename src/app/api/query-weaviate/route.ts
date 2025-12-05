@@ -1,74 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ModelFactory } from "@/lib/services/modelFactory";
-import { connectToDatabase } from "@/lib/mongodb/client";
-import axios from "axios";
-import { MODEL_NAMES } from "@/config/models";
-import { weaviateClient } from "@/lib/services/weaviate-client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { connectToDatabase } from "@/lib/mongodb/client";
+import { weaviateClient } from "@/lib/services/weaviate-client";
+import { getSaptivaEmbedder } from "@/lib/services/embedders/saptiva-embedder";
+import { ModelFactory } from "@/lib/services/modelFactory";
 
-// Extrae pregunta de un texto
-function extraerPregunta(texto: string): string | null {
+/**
+ * Extract question from text (Spanish format)
+ */
+function extractQuestion(text: string): string | null {
   const regex = /¿(.*?)\?/;
-  const match = texto.match(regex);
+  const match = text.match(regex);
   return match && match[1] ? `¿${match[1]}?` : null;
 }
 
-// Genera embedding con Saptiva
-async function getCustomEmbedding(text: string): Promise<number[]> {
-  // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
-  const response = await axios.post(
-    process.env.EMBEDDING_API_URL!,
-    {
-      model: MODEL_NAMES.EMBEDDING,
-      prompt: text,
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.SAPTIVA_API_KEY!}`,
-      },
-    }
-  );
+/**
+ * Ambiguous words that indicate continuation of previous topic
+ */
+const AMBIGUOUS_WORDS = [
+  "si", "sí", "ok", "cuéntame más", "claro", "entendido",
+  "perfecto", "de acuerdo", "vale", "genial", "bueno",
+  "está bien", "sí, claro", "sí, por supuesto",
+  "si, claro", "si, por supuesto",
+];
 
-  if (!response.data || !Array.isArray(response.data.embeddings)) {
-    throw new Error("Formato de embedding inválido");
-  }
-
-  return response.data.embeddings;
-}
-
-// Busca en Weaviate usando nearVector - searches in user's collection
+/**
+ * Search in Weaviate using vector similarity
+ */
 async function searchInWeaviate(queryText: string, userId: string) {
-  // Use user-specific collection for data isolation
+  const embedder = getSaptivaEmbedder();
   const collection = await weaviateClient.getUserCollection(userId);
-  const queryVector = await getCustomEmbedding(queryText);
 
-  const result = await collection.query.nearVector(queryVector, {
-    limit: 10, // Increased from 2 to 10 for better context coverage
+  const embeddingResult = await embedder.embed(queryText);
+
+  const result = await collection.query.nearVector(embeddingResult.embedding, {
+    limit: 10,
   });
 
-  console.log("Resultados:", JSON.stringify(result, null, 2));
+  console.log(`[Query] Found ${result.objects.length} results`);
   return result.objects as { properties: { text?: string } }[];
 }
+
+/**
+ * Build context from search results
+ */
+function buildContext(results: { properties: { text?: string } }[]): string {
+  if (results.length === 0) return "";
+
+  return results
+    .map((chunk, index) => {
+      const text = typeof chunk.properties.text === "string" ? chunk.properties.text : "";
+      return `[Sección ${index + 1}]:\n${text}`;
+    })
+    .join("\n\n---\n\n");
+}
+
+/**
+ * Build prompt for LLM
+ */
+function buildPrompt(
+  systemPrompt: string,
+  context: string,
+  history: string,
+  previousQuestion: string,
+  query: string,
+  contactName?: string
+): string {
+  return `
+Contexto General:
+${systemPrompt}
+
+=== INFORMACIÓN RELEVANTE DE LOS DOCUMENTOS ===
+${context}
+
+=== INSTRUCCIONES CRÍTICAS ===
+
+1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
+2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
+3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
+4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
+5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
+6. Lenguaje claro y profesional.
+7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
+8. Responde siempre en español.
+9. No incluyas etiquetas como <think> o </think>.
+10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
+
+Historial de conversación: "${history}"
+Última pregunta enviada: "${previousQuestion}"
+${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
+Mensaje actual del usuario: "${query}"`;
+}
+
+/**
+ * POST /api/query-weaviate
+ * Query documents and generate AI response.
+ */
 export async function POST(req: NextRequest) {
-  const { db } = await connectToDatabase();
-  const collectiondb = db.collection("messages");
-
-  let pregunta = "";
-  let history = "";
-  let response: { properties: { text?: string } }[] = [];
-
   try {
-    // Get user from session for collection isolation
+    // 1. Authentication
     const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
 
+    // 2. Parse request
     const body = await req.json();
-
     const {
       message_id,
       query,
@@ -78,19 +117,21 @@ export async function POST(req: NextRequest) {
       contacts = [],
     } = body;
 
-    const contactName = contacts?.[0]?.profile?.name || "Chat Interno";
-
     if (!query) {
       return NextResponse.json(
-        { error: "Se requiere una consulta" },
+        { error: "Query is required" },
         { status: 400 }
       );
     }
 
-    console.log(`Processing query: "${query}" from: ${contactName} (user: ${userId})`);
+    const contactName = contacts?.[0]?.profile?.name || "Chat Interno";
+    console.log(`[Query] Processing: "${query}" from: ${contactName}`);
 
-    // Guardar mensaje en base de datos
-    await collectiondb.insertOne({
+    // 3. Save user message to MongoDB
+    const { db } = await connectToDatabase();
+    const messagesCollection = db.collection("messages");
+
+    await messagesCollection.insertOne({
       message_id,
       message_role: "user",
       model: modelId,
@@ -98,105 +139,49 @@ export async function POST(req: NextRequest) {
       temperature: temperature,
       max_tokens: 1000,
       timestamp: new Date(),
-      contact_name: contactName, // Guardar el nombre aquí
+      contact_name: contactName,
     });
 
-    const messages = await collectiondb
+    // 4. Get conversation history
+    const messages = await messagesCollection
       .find({ message_id })
       .sort({ _id: -1 })
       .limit(5)
       .toArray();
 
-    if (messages.length > 1) {
-      pregunta = extraerPregunta(messages[1].message) || "";
-      console.log("Pregunta extraída:", pregunta);
+    let previousQuestion = "";
+    let history = "";
 
+    if (messages.length > 1) {
+      previousQuestion = extractQuestion(messages[1].message) || "";
       messages.reverse();
       history = messages
-        .map(
-          (message) =>
-            `- Role: ${message.message_role} \n  - Mensaje: ${message.message}`
-        )
+        .map((m) => `- Role: ${m.message_role}\n  - Mensaje: ${m.message}`)
         .join("\n");
     }
 
-    const ambiguous_words = [
-      "si",
-      "sí",
-      "ok",
-      "cuéntame más",
-      "claro",
-      "entendido",
-      "perfecto",
-      "de acuerdo",
-      "vale",
-      "genial",
-      "bueno",
-      "está bien",
-      "sí, claro",
-      "sí, por supuesto",
-      "si, claro",
-      "si, por supuesto",
-    ];
-
+    // 5. Determine search query (handle ambiguous responses)
     const normalizedQuery = query.trim().toLowerCase();
+    const isAmbiguous = AMBIGUOUS_WORDS.includes(normalizedQuery);
+    const searchQuery = isAmbiguous && previousQuestion ? previousQuestion : query;
 
-    if (ambiguous_words.includes(normalizedQuery)) {
-      console.log("Consulta ambigua detectada:", normalizedQuery);
-      if (pregunta) {
-        response = (await searchInWeaviate(pregunta, userId)) || [];
-      } else {
-        response = [];
-      }
-    } else {
-      response = (await searchInWeaviate(query, userId)) || [];
-    }
+    // 6. Search in Weaviate
+    const results = isAmbiguous && !previousQuestion
+      ? []
+      : await searchInWeaviate(searchQuery, userId);
 
-    console.log("Response:", JSON.stringify(response, null, 2));
+    // 7. Build context and prompt
+    const context = buildContext(results);
+    const prompt = buildPrompt(
+      systemPrompt,
+      context,
+      history,
+      previousQuestion,
+      query,
+      contactName
+    );
 
-    // Combine ALL retrieved chunks into context
-    let text = "";
-    if (response.length > 0) {
-      text = response
-        .map((chunk, index) => {
-          const chunkText =
-            typeof chunk.properties.text === "string"
-              ? chunk.properties.text
-              : "";
-          return `[Sección ${index + 1}]:\n${chunkText}`;
-        })
-        .join("\n\n---\n\n");
-    }
-
-    const prompt = `
-      Contexto General:
-      ${systemPrompt}
-
-      === INFORMACIÓN RELEVANTE DE LOS DOCUMENTOS ===
-      ${text}
-
-      === INSTRUCCIONES CRÍTICAS ===
-
-      1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
-      2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
-      3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
-      4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
-      5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
-      6. Lenguaje claro y profesional.
-      7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
-      8. Responde siempre en español.
-      9. No incluyas etiquetas como <think> o </think>.
-      10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
-
-      Historial de conversación: "${history}"
-      Última pregunta enviada: "${pregunta}"
-      ${
-        contactName && contactName !== "Chat Interno"
-          ? `Nombre del contacto: "${contactName}"\n`
-          : ""
-      }
-      Mensaje actual del usuario: "${query}"`;
-
+    // 8. Generate LLM response
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(
       message_id,
@@ -208,19 +193,19 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      query: query,
+      query,
       matches: [],
-      answer: answer,
+      answer,
       modelId,
       provider: "saptiva",
     });
+
   } catch (error) {
-    console.error("Error processing query:", error);
+    console.error("[Query] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Error processing query",
+        error: error instanceof Error ? error.message : "Error processing query",
         details: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 }
