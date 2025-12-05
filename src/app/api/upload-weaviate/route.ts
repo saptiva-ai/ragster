@@ -305,7 +305,7 @@ async function fileRetrieval(
   testMode: boolean,
   formNamespace: string,
   userId: string
-) {
+): Promise<Array<Record<string, unknown>>> {
   const { db } = await connectToDatabase();
   const fileColection = db.collection("file");
 
@@ -348,7 +348,7 @@ async function fileRetrieval(
       );
 
       // Aquí se suben los datos a Weaviate
-      insertDataToWeaviate(
+      await insertDataToWeaviate(
         chunks,
         filename,
         file,
@@ -373,6 +373,8 @@ async function fileRetrieval(
       });
     }
   }
+
+  return processedFiles;
 }
 
 export async function POST(req: NextRequest) {
@@ -405,12 +407,12 @@ export async function POST(req: NextRequest) {
     await ensureWeaviateClassExists(className);
     console.log(`Clase ${className} asegurada en Weaviate.`);
 
-    fileRetrieval(files, testMode, formNamespace, userId);
+    const processedFiles = await fileRetrieval(files, testMode, formNamespace, userId);
 
     return NextResponse.json({
       success: true,
       message: `${files.length} archivos procesados.`,
-      processedFiles: [],
+      processedFiles,
     });
   } catch (error) {
     console.error("Error general:", error);
