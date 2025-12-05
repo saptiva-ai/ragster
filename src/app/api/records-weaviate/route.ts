@@ -32,12 +32,11 @@ export async function POST(request: Request) {
 
     // 3. Ensure collection exists and generate embedding
     await weaviateClient.ensureUserCollectionExists(userId);
-    const collection = await weaviateClient.getUserCollection(userId);
 
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(text);
 
-    // 4. Insert into Weaviate
+    // 4. Insert into Weaviate (v2 API)
     const properties = {
       sourceName: "Manual",
       uploadDate: new Date().toISOString(),
@@ -50,18 +49,16 @@ export async function POST(request: Request) {
       userId,
     };
 
-    await collection.data.insert({
-      properties,
-      vectors: embeddingResult.embedding,
-    });
+    const id = await weaviateClient.insertObject(userId, properties, embeddingResult.embedding);
 
-    console.log("[Records] Created manual record");
+    console.log("[Records] Created manual record:", id);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id });
   } catch (error) {
     console.error("[Records] Error creating record:", error);
+    const message = error instanceof Error ? error.message : "Error creating record";
     return NextResponse.json(
-      { success: false, error: "Error creating record" },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -83,18 +80,8 @@ export async function GET() {
     }
     const userId = session.user.id;
 
-    // 2. Fetch records from Weaviate
-    const collection = await weaviateClient.getUserCollection(userId);
-    const response = await collection.query.fetchObjects({ limit: 10000 });
-
-    if (!response?.objects?.length) {
-      return NextResponse.json({ success: true, records: [] });
-    }
-
-    const records = response.objects.map((obj) => ({
-      id: obj.uuid,
-      properties: obj.properties,
-    }));
+    // 2. Fetch records from Weaviate (v2 API)
+    const records = await weaviateClient.getAllObjects(userId, 10000);
 
     return NextResponse.json({ success: true, records });
   } catch (error) {
@@ -133,16 +120,11 @@ export async function PUT(request: Request) {
       );
     }
 
-    // 3. Generate new embedding and update
-    const collection = await weaviateClient.getUserCollection(userId);
+    // 3. Generate new embedding and update (v2 API)
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(properties.text);
 
-    await collection.data.update({
-      id,
-      properties,
-      vectors: embeddingResult.embedding,
-    });
+    await weaviateClient.updateObject(userId, id, properties, embeddingResult.embedding);
 
     console.log(`[Records] Updated record: ${id}`);
 
@@ -172,11 +154,10 @@ export async function DELETE(request: Request) {
     }
     const userId = session.user.id;
 
-    // 2. Parse request and delete
+    // 2. Parse request and delete (v2 API)
     const { id } = await request.json();
 
-    const collection = await weaviateClient.getUserCollection(userId);
-    await collection.data.deleteById(id);
+    await weaviateClient.deleteObject(userId, id);
 
     console.log(`[Records] Deleted record: ${id}`);
 

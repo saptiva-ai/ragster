@@ -30,22 +30,24 @@ const AMBIGUOUS_WORDS = [
  */
 async function searchInWeaviate(queryText: string, userId: string) {
   const embedder = getSaptivaEmbedder();
-  const collection = await weaviateClient.getUserCollection(userId);
-
   const embeddingResult = await embedder.embed(queryText);
 
-  const result = await collection.query.nearVector(embeddingResult.embedding, {
-    limit: 10,
-  });
+  // Use v2 API via weaviateClient
+  const results = await weaviateClient.searchByVector(
+    userId,
+    embeddingResult.embedding,
+    10,
+    'text sourceName chunkIndex totalChunks'
+  );
 
-  console.log(`[Query] Found ${result.objects.length} results`);
-  return result.objects as { properties: { text?: string } }[];
+  console.log(`[Query] Found ${results.length} results`);
+  return results;
 }
 
 /**
  * Build context from search results
  */
-function buildContext(results: { properties: { text?: string } }[]): string {
+function buildContext(results: Array<{ properties: Record<string, unknown> }>): string {
   if (results.length === 0) return "";
 
   return results

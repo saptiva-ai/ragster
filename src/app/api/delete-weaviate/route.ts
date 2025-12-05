@@ -30,11 +30,8 @@ export async function DELETE(req: NextRequest) {
 
     console.log(`[Delete] Deleting source: ${name} for user: ${userId}`);
 
-    // 3. Delete from Weaviate
-    const collection = await weaviateClient.getUserCollection(userId);
-    const deleteResult = await collection.data.deleteMany(
-      collection.filter.byProperty("sourceName").equal(name)
-    );
+    // 3. Delete from Weaviate (v2 API)
+    await weaviateClient.deleteByFilter(userId, 'sourceName', name);
 
     // 4. Delete from MongoDB
     const { db } = await connectToDatabase();
@@ -45,7 +42,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Source deleted successfully",
-      data: deleteResult,
     });
 
   } catch (error) {

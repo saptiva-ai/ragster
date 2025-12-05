@@ -1,5 +1,5 @@
-import {useState, useMemo} from "react";
-import {WeaviateRecord} from "@/lib/services/weaviate";
+import { useState, useMemo } from "react";
+import { WeaviateRecord } from "@/lib/services/weaviate";
 import WeaviateRecordDetails from "./WeaviateRecordDetails";
 import TablePagination from "./TablePagination";
 
@@ -14,14 +14,14 @@ export default function WeaviateRecordsTable({
 }: WeaviateRecordsTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<WeaviateRecord | null>(
-    null,
+    null
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newText, setNewText] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
 
   const filteredRecords = useMemo(() => {
     if (!searchQuery.trim()) return records;
@@ -29,7 +29,7 @@ export default function WeaviateRecordsTable({
     return records.filter(
       (record) =>
         typeof record.properties.text === "string" &&
-        record.properties.text.toLowerCase().includes(query),
+        record.properties.text.toLowerCase().includes(query)
     );
   }, [records, searchQuery]);
 
@@ -57,8 +57,8 @@ export default function WeaviateRecordsTable({
     try {
       const res = await fetch("/api/records-weaviate", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({text: newText}),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newText }),
       });
       if (!res.ok) throw new Error("Error al crear el registro");
       setShowAddModal(false);
@@ -257,7 +257,7 @@ export default function WeaviateRecordsTable({
                           {typeof record.properties.text === "string"
                             ? record.properties.text
                                 .split("\n")[0]
-                                .slice(0, 150)
+                                .slice(0, 130)
                             : "Sin texto"}
                         </div>
                         <div className="text-xs text-gray-500 mt-1 truncate">
@@ -266,7 +266,7 @@ export default function WeaviateRecordsTable({
                                 .split("\n")
                                 .slice(1)
                                 .join(" ")
-                                .slice(0, 200)
+                                .slice(0, 180)
                             : ""}
                         </div>
                         <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">

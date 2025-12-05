@@ -84,8 +84,8 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Build Weaviate documents
-        const docsToInsert = result.chunks.map((chunk, index) => ({
+        // Build Weaviate objects for batch insert
+        const objects = result.chunks.map((chunk, index) => ({
           properties: {
             text: chunk.content,
             chunkIndex: index + 1,
@@ -99,13 +99,12 @@ export async function POST(req: NextRequest) {
             sourceNamespace: formNamespace,
             userId: userId,
           },
-          vectors: chunk.embedding,
+          vector: chunk.embedding,
         }));
 
-        // Insert into Weaviate
-        const collection = await weaviateClient.getUserCollection(userId);
-        await collection.data.insertMany(docsToInsert);
-        console.log(`[Upload] Inserted ${docsToInsert.length} chunks into Weaviate`);
+        // Insert batch into Weaviate (v2 API)
+        await weaviateClient.insertBatch(userId, objects);
+        console.log(`[Upload] Inserted ${objects.length} chunks into Weaviate`);
 
         // Update MongoDB status
         await fileCollection.updateOne(

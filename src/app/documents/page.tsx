@@ -57,6 +57,7 @@ export default function DocumentsPage() {
 
         if (data.files.length === 0) {
           setActionInProgress(false);
+          setIsLoading(false);
           return false;
         }
 
@@ -75,6 +76,7 @@ export default function DocumentsPage() {
 
         setSources(mappedFiles);
         setActionInProgress(true);
+        setIsLoading(false);
 
         const hasStatusOne = mappedFiles.some((f: Source) => f.status === 1);
 
