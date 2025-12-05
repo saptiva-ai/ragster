@@ -1,8 +1,6 @@
 import {NextRequest, NextResponse} from "next/server";
-import weaviate, {WeaviateClient} from "weaviate-client";
 import {connectToDatabase} from "@/lib/mongodb/client";
-
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
+import {weaviateClient} from "@/lib/services/weaviate-client";
 
 export async function DELETE(req: NextRequest) {
   const {db} = await connectToDatabase();
@@ -19,14 +17,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const client: WeaviateClient = await weaviate.connectToWeaviateCloud(
-      process.env.WEAVIATE_HOST!,
-      {
-        authCredentials: new weaviate.ApiKey(weaviateApiKey),
-      },
-    );
-
-    const collection = await client.collections.get("DocumentChunk");
+    const collection = await weaviateClient.getCollection("DocumentChunk");
 
     console.log(
       "Colección DocumentChunk:",

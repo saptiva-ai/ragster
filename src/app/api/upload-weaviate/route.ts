@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 // Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
 export const dynamic = "force-dynamic";
 import mammoth from "mammoth";
-import weaviate, { WeaviateClient } from "weaviate-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import axios from "axios";
@@ -12,58 +11,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { SaptivaService } from "@/lib/services/saptiva";
 import { pdfToImages } from "@/lib/services/pdfToImages";
+import { weaviateClient } from "@/lib/services/weaviate-client";
 
 interface Chunk {
   text: string;
   id: string;
-}
-
-// Cliente Weaviate (lazy initialization)
-let client: WeaviateClient | null = null;
-
-async function getWeaviateClient(): Promise<WeaviateClient> {
-  if (!client) {
-    client = await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
-      authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
-    });
-  }
-  return client;
-}
-
-// Asegúrate que la clase existe en Weaviate
-async function ensureWeaviateClassExists(className: string) {
-  const weaviateClient = await getWeaviateClient();
-  // 1. Listar todas las colecciones/clases
-  const collections = await weaviateClient.collections.listAll();
-  const exists = collections.some(
-    (col: { name: string }) => col.name === className
-  );
-
-  if (!exists) {
-    console.log(`La colección ${className} no existe. Creando...`);
-    await weaviateClient.collections.create({
-      name: className,
-      vectorizers: [],
-      properties: [
-        { name: "text", dataType: "text" },
-        { name: "sourceName", dataType: "text" },
-        { name: "sourceType", dataType: "text" },
-        { name: "sourceSize", dataType: "text" },
-        { name: "uploadDate", dataType: "text" },
-        { name: "chunkIndex", dataType: "int" },
-        { name: "totalChunks", dataType: "int" },
-        { name: "sourceNamespace", dataType: "text" },
-        { name: "prevChunkIndex", dataType: "int" },
-        { name: "nextChunkIndex", dataType: "int" },
-        { name: "userId", dataType: "text" },
-      ],
-    });
-    // Esperar a que la colección esté disponible (opcional: reintentos)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log(`Colección ${className} creada.`);
-  } else {
-    console.log(`La colección ${className} ya existe.`);
-  }
 }
 
 // Image types that need OCR (PDF handled separately)
@@ -258,10 +210,8 @@ async function insertDataToWeaviate(
   await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
 
   try {
-    const weaviateClient = await getWeaviateClient();
-    const resultsss = await weaviateClient.collections
-      .get("DocumentChunk")
-      .data.insertMany(docsToInsert);
+    const collection = await weaviateClient.getCollection("DocumentChunk");
+    const resultsss = await collection.data.insertMany(docsToInsert);
     console.log(
       "Resultado de la inserción en Weaviate:",
       JSON.stringify(resultsss, null, 2)
@@ -404,7 +354,7 @@ export async function POST(req: NextRequest) {
     }
 
     const className = "DocumentChunk";
-    await ensureWeaviateClassExists(className);
+    await weaviateClient.ensureCollectionExists(className);
     console.log(`Clase ${className} asegurada en Weaviate.`);
 
     const processedFiles = await fileRetrieval(files, testMode, formNamespace, userId);

@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModelFactory } from "@/lib/services/modelFactory";
 import { connectToDatabase } from "@/lib/mongodb/client";
-import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
-
-// Cliente Weaviate (lazy initialization)
-let client: WeaviateClient | null = null;
-
-async function getWeaviateClient(): Promise<WeaviateClient> {
-  if (!client) {
-    client = await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
-      authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
-    });
-  }
-  return client;
-}
+import { weaviateClient } from "@/lib/services/weaviate-client";
 
 // Extrae pregunta de un texto
 function extraerPregunta(texto: string): string | null {
@@ -50,8 +38,7 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 
 // Busca en Weaviate usando nearVector
 async function searchInWeaviate(queryText: string) {
-  const weaviateClient = await getWeaviateClient();
-  const collection = weaviateClient.collections.get("DocumentChunk");
+  const collection = await weaviateClient.getCollection("DocumentChunk");
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {

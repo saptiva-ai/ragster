@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
-import weaviate, { WeaviateClient } from "weaviate-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
-
-const weaviateApiKey = process.env.WEAVIATE_API_KEY!;
-
-async function getWeaviateClient(): Promise<WeaviateClient> {
-  return await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
-    authCredentials: new weaviate.ApiKey(weaviateApiKey),
-  });
-}
+import { weaviateClient } from "@/lib/services/weaviate-client";
 
 // ➕ POST: Crear nuevo registro manualmente
 export async function POST(request: Request) {
@@ -23,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = await getWeaviateClient();
+    const client = await weaviateClient.getClient();
     const coll = await client.collections.listAll();
 
     if (!coll || coll.length === 0) {
@@ -93,7 +85,7 @@ export async function POST(request: Request) {
 // 🔍 GET: Obtener registros existentes
 export async function GET() {
   try {
-    const client = await getWeaviateClient();
+    const client = await weaviateClient.getClient();
     const coll = await client.collections.listAll();
 
     if (!coll || coll.length === 0) {
@@ -127,7 +119,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const { id, properties } = await request.json();
-    const client = await getWeaviateClient();
+    const client = await weaviateClient.getClient();
     const coll = await client.collections.listAll();
 
     if (!coll || coll.length === 0) {
@@ -187,7 +179,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { id } = await request.json();
-    const client = await getWeaviateClient();
+    const client = await weaviateClient.getClient();
     const coll = await client.collections.listAll();
 
     if (!coll || coll.length === 0) {
