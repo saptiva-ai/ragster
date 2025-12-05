@@ -3,13 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
-import {DEFAULT_MODEL_SETTINGS, CHAT_MODELS} from "@/config/models";
-
-interface ModelSettingsData {
-  modelId: string;
-  temperature: number;
-  systemPrompt: string;
-}
+import ModelSettings from "@/components/ModelSettings";
 
 interface WabaSettingsData {
   phoneNumberId: string;
@@ -25,12 +19,6 @@ interface NotificationState {
 }
 
 export default function SettingsPage() {
-  const [modelSettings, setModelSettings] = useState<ModelSettingsData>({
-    modelId: DEFAULT_MODEL_SETTINGS.modelId,
-    temperature: DEFAULT_MODEL_SETTINGS.temperature,
-    systemPrompt: DEFAULT_MODEL_SETTINGS.systemPrompt,
-  });
-
   const [wabaSettings, setWabaSettings] = useState<WabaSettingsData>({
     phoneNumberId: "",
     businessAccountId: "",
@@ -44,7 +32,8 @@ export default function SettingsPage() {
     visible: false,
   });
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Mostrar notificaciones
   const showNotification = (type: "success" | "error", message: string) => {
@@ -59,34 +48,25 @@ export default function SettingsPage() {
     }, 5000);
   };
 
-  // 🔹 Cargar configuraciones desde el servidor (estable con useCallback)
-  const fetchSettings = useCallback(async () => {
+  // Cargar todas las configuraciones
+  const fetchAllSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      // API settings
-      const apiResponse = await fetch("/api/settings?key=apiSettings");
-      if (apiResponse.ok) {
-        const apiData = await apiResponse.json();
-        if (apiData.success && apiData.data) {
-          console.log("Configuraciones de API:", apiData.data);
-        }
-      }
-
-      // Model settings
-      const modelResponse = await fetch("/api/settings?key=modelSettings");
-      if (modelResponse.ok) {
-        const modelData = await modelResponse.json();
-        if (modelData.success && modelData.data) {
-          setModelSettings(modelData.data);
-        }
-      }
-
-      // WABA settings
+      // Cargar configuraciones de WABA
       const wabaResponse = await fetch("/api/settings?key=wabaSettings");
       if (wabaResponse.ok) {
         const wabaData = await wabaResponse.json();
         if (wabaData.success && wabaData.data) {
           setWabaSettings(wabaData.data);
+        }
+      }
+
+      // API settings (solo para log, no se usa)
+      const apiResponse = await fetch("/api/settings?key=apiSettings");
+      if (apiResponse.ok) {
+        const apiData = await apiResponse.json();
+        if (apiData.success && apiData.data) {
+          console.log("Configuraciones de API:", apiData.data);
         }
       }
     } catch (error) {
@@ -97,23 +77,9 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // 🔹 Llamar al cargar
   useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
-
-  // Manejar cambios en la configuración del modelo
-  const handleModelChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
-  ) => {
-    const { name, value } = e.target;
-    setModelSettings((prev) => ({
-      ...prev,
-      [name]: name === "temperature" ? parseFloat(value) : value,
-    }));
-  };
+    fetchAllSettings();
+  }, [fetchAllSettings]);
 
   // Manejar cambios en la configuración de WABA
   const handleWabaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,58 +90,15 @@ export default function SettingsPage() {
     }));
   };
 
-  // Guardar configuraciones del modelo
-  const handleSaveModelSettings = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "modelSettings",
-          data: modelSettings,
-        }),
-      });
-
-      if (response.ok) {
-        showNotification(
-          "success",
-          "Configuración del modelo guardada correctamente",
-        );
-
-        // Emitir evento global
-        window.dispatchEvent(
-          new CustomEvent("settingsChanged", { detail: modelSettings }),
-        );
-
-        // Guardar en localStorage
-        localStorage.setItem("modelSettings", JSON.stringify(modelSettings));
-
-        // 🔹 Recargar al momento
-        fetchSettings();
-      } else {
-        const error = await response.json();
-        throw new Error(error.error || "Error al guardar configuración");
-      }
-    } catch (error) {
-      console.error("Error al guardar configuración del modelo:", error);
-      showNotification(
-        "error",
-        error instanceof Error ? error.message : "Error desconocido",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Guardar configuraciones de WABA
   const handleSaveWabaSettings = async () => {
     // Validar campos requeridos
-    if (!wabaSettings.phoneNumberId || !wabaSettings.businessAccountId || !wabaSettings.accessToken) {
-      showNotification(
-        "error",
-        "Todos los campos son requeridos"
-      );
+    if (
+      !wabaSettings.phoneNumberId ||
+      !wabaSettings.businessAccountId ||
+      !wabaSettings.accessToken
+    ) {
+      showNotification("error", "Todos los campos son requeridos");
       return;
     }
 
@@ -185,14 +108,11 @@ export default function SettingsPage() {
       wabaSettings.businessAccountId.trim() === "" ||
       wabaSettings.accessToken.trim() === ""
     ) {
-      showNotification(
-        "error",
-        "Los campos no pueden estar vacíos"
-      );
+      showNotification("error", "Los campos no pueden estar vacíos");
       return;
     }
 
-    setIsLoading(true);
+    setIsSaving(true);
     try {
       const response = await fetch("/api/settings", {
         method: "POST",
@@ -206,25 +126,51 @@ export default function SettingsPage() {
       if (response.ok) {
         showNotification(
           "success",
-          "Configuración de WhatsApp Business guardada correctamente",
+          "Configuración de WhatsApp Business guardada correctamente"
         );
-
-        // 🔹 Recargar al momento
-        fetchSettings();
+        await fetchAllSettings();
       } else {
         const error = await response.json();
         throw new Error(error.error || "Error al guardar configuración");
       }
     } catch (error) {
-      console.error("Error al guardar configuración de WABA:", error);
       showNotification(
         "error",
-        error instanceof Error ? error.message : "Error desconocido",
+        error instanceof Error ? error.message : "Error desconocido"
       );
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  // Callbacks para ModelSettings
+  const handleModelSave = () => {
+    showNotification("success", "Configuración del modelo guardada correctamente");
+  };
+
+  const handleModelError = (error: string) => {
+    showNotification("error", error);
+  };
+
+  // Loading inicial de la página
+  if (isLoading) {
+    return (
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex items-center mb-6">
+          <Link href="/" className="text-[#01f6d2] hover:text-teal-600 mr-2">
+            <ArrowLeftIcon className="h-5 w-5" />
+          </Link>
+          <h1 className="text-2xl font-bold text-[#01f6d2]">Configuración</h1>
+        </div>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#01f6d2]"></div>
+          <span className="ml-3 text-lg text-gray-700">
+            Cargando configuraciones...
+          </span>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -321,87 +267,26 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleSaveWabaSettings}
-                disabled={isLoading || !wabaSettings.isEnabled}
+                disabled={isSaving || !wabaSettings.isEnabled}
                 className={`px-4 py-2 rounded-md ${
-                  isLoading || !wabaSettings.isEnabled
+                  isSaving || !wabaSettings.isEnabled
                     ? "bg-gray-300 cursor-not-allowed"
                     : "bg-[#01f6d2] hover:bg-teal-500 text-black"
                 }`}
               >
-                {isLoading ? "Guardando..." : "Guardar configuración WhatsApp"}
+                {isSaving ? "Guardando..." : "Guardar configuración WhatsApp"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Configuración del modelo */}
+        {/* Configuración del modelo - usando componente */}
         <div className="col-span-3 md:col-span-1">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4 text-[#01f6d2]">
-              Configuración del Modelo
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Modelo
-                </label>
-                <select
-                  name="modelId"
-                  value={modelSettings.modelId}
-                  onChange={handleModelChange}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                >
-                  {CHAT_MODELS.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Temperatura: {modelSettings.temperature}
-                </label>
-                <input
-                  type="range"
-                  name="temperature"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={modelSettings.temperature}
-                  onChange={handleModelChange}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Prompt del sistema
-                </label>
-                <textarea
-                  name="systemPrompt"
-                  value={modelSettings.systemPrompt}
-                  onChange={handleModelChange}
-                  rows={4}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                ></textarea>
-              </div>
-
-              <button
-                onClick={handleSaveModelSettings}
-                disabled={isLoading}
-                className={`px-4 py-2 rounded-md ${
-                  isLoading
-                    ? "bg-gray-300 cursor-not-allowed"
-                    : "bg-[#01f6d2] hover:bg-teal-500 text-black"
-                }`}
-              >
-                {isLoading ? "Guardando..." : "Guardar configuración modelo"}
-              </button>
-            </div>
-          </div>
+          <ModelSettings 
+            onSave={handleModelSave} 
+            onError={handleModelError}
+            compact={true}
+          />
         </div>
       </div>
     </main>

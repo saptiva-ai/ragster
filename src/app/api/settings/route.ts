@@ -161,3 +161,80 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// DELETE para eliminar configuraciones
+export async function DELETE(req: NextRequest) {
+  try {
+    const {searchParams} = new URL(req.url);
+    const key = searchParams.get("key");
+
+    console.log(
+      `Recibida solicitud para eliminar configuración con clave "${key}"`,
+    );
+
+    if (!key) {
+      console.error("Solicitud de eliminación sin clave");
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Se requiere un parámetro "key" para identificar la configuración a eliminar',
+        },
+        {status: 400},
+      );
+    }
+
+    // Conectar a MongoDB
+    try {
+      const {db} = await connectToDatabase();
+      const settingsCollection = db.collection("settings");
+
+      // Eliminar la configuración
+      const result = await settingsCollection.deleteOne({key});
+
+      console.log(`Configuración eliminada para "${key}" en MongoDB:`, {
+        deletedCount: result.deletedCount,
+      });
+
+      if (result.deletedCount === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `No se encontró configuración con la clave "${key}" para eliminar`,
+          },
+          {status: 404},
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Configuración eliminada exitosamente de la base de datos",
+        result: {
+          deleted: result.deletedCount,
+          key: key,
+        },
+      });
+    } catch (dbError) {
+      console.error("Error de conexión a MongoDB:", dbError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Error de conexión a la base de datos",
+          details:
+            dbError instanceof Error ? dbError.message : "Error desconocido",
+        },
+        {status: 500},
+      );
+    }
+  } catch (error) {
+    console.error("Error al procesar la solicitud:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Error al procesar la solicitud",
+        details: error instanceof Error ? error.message : "Error desconocido",
+      },
+      {status: 500},
+    );
+  }
+}
