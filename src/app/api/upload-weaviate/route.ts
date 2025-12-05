@@ -20,7 +20,7 @@ interface Chunk {
 
 const client = weaviate.client({
   scheme: "http",
-  host: "localhost:8080",
+  host: process.env.WEAVIATE_HOST || "localhost:8080",
 });
 
 // Asegúrate que la clase existe en Weaviate

@@ -5,7 +5,7 @@ import { connectToDatabase } from "@/lib/mongodb/client";
 export async function DELETE(req: NextRequest) {
   const client = weaviate.client({
     scheme: "http",
-    host: "localhost:8080",
+    host: process.env.WEAVIATE_HOST || "localhost:8080",
   });
 
   const { db } = await connectToDatabase();

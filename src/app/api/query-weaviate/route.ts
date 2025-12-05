@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModelFactory } from "@/lib/services/modelFactory";
 import { connectToDatabase } from "@/lib/mongodb/client";
-import weaviate, { WeaviateClient } from "weaviate-client";
+import weaviate from "weaviate-ts-client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
 
-// Cliente Weaviate (lazy initialization)
-let client: WeaviateClient | null = null;
-
-async function getWeaviateClient(): Promise<WeaviateClient> {
-  if (!client) {
-    client = await weaviate.connectToWeaviateCloud(process.env.WEAVIATE_HOST!, {
-      authCredentials: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
-    });
-  }
-  return client;
-}
+const client = weaviate.client({
+  scheme: "http",
+  host: process.env.WEAVIATE_HOST || "localhost:8080",
+});
 
 // Extrae pregunta de un texto
 function extraerPregunta(texto: string): string | null {
@@ -50,17 +43,27 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
 
 // Busca en Weaviate usando nearVector
 async function searchInWeaviate(queryText: string) {
-  const weaviateClient = await getWeaviateClient();
-  const collection = weaviateClient.collections.get("DocumentChunk");
+  // Crear el embedding del texto de búsqueda
   const queryVector = await getCustomEmbedding(queryText);
 
-  const result = await collection.query.nearVector(queryVector, {
-    limit: 10, // Increased from 2 to 10 for better context coverage
-  });
+  // 🔍 Búsqueda vectorial usando la API GraphQL del cliente actual
+  const result = await client.graphql
+    .get()
+    .withClassName("DocumentChunk")
+    .withFields("text")
+    .withNearVector({ vector: queryVector })
+    .withLimit(10)
+    .do();
 
   console.log("Resultados:", JSON.stringify(result, null, 2));
-  return result.objects as { properties: { text?: string } }[];
+
+  const objects = result?.data?.Get?.DocumentChunk ?? [];
+
+  return (objects as Array<{ text?: string }>).map((obj) => ({
+    properties: { text: obj.text },
+  }));
 }
+
 export async function POST(req: NextRequest) {
   const { db } = await connectToDatabase();
   const collectiondb = db.collection("messages");

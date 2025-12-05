@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import weaviate from "weaviate-ts-client";
 import { connectToDatabase } from "@/lib/mongodb/client";
-import { error } from "console";
 
 type WeaviateObject = {
   id?: string;
@@ -11,7 +10,7 @@ type WeaviateObject = {
 
 const client = weaviate.client({
   scheme: "http",
-  host: "localhost:8080",
+  host: process.env.WEAVIATE_HOST || "localhost:8080",
 });
 
 export async function GET() {

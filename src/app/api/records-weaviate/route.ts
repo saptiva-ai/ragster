@@ -5,8 +5,10 @@ import { MODEL_NAMES } from "@/config/models";
 
 const client = weaviate.client({
   scheme: "http",
-  host: "localhost:8080",
+  host: process.env.WEAVIATE_HOST || "localhost:8080",
 });
+
+console.log("Weaviate Host:", process.env.WEAVIATE_HOST || "localhost:8080");
 
 // 🔍 GET: Obtener registros existentes
 export async function GET() {
@@ -132,10 +134,12 @@ export async function POST(request: Request) {
       success: true,
       id: result?.id ?? null,
     });
-  } catch (error: any) {
-    console.error("❌ Error al crear registro en Weaviate:", error);
+  } catch (error) {
+    console.error("❌ Error creando registro:", error);
+    const message =
+      error instanceof Error ? error.message : "Error al crear el registro";
     return NextResponse.json(
-      { success: false, error: error.message ?? "Error al crear el registro" },
+      { success: false, error: message },
       { status: 500 }
     );
   }
