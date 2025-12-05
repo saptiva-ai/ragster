@@ -2,10 +2,22 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
 import { weaviateClient } from "@/lib/services/weaviate-client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // ➕ POST: Crear nuevo registro manualmente
 export async function POST(request: Request) {
   try {
+    // Auth: Get current user from session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    const userId = session.user.id;
+
     const { text } = await request.json();
 
     if (!text || typeof text !== "string") {
@@ -15,17 +27,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = await weaviateClient.getClient();
-    const coll = await client.collections.listAll();
-
-    if (!coll || coll.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "No se encontraron colecciones" },
-        { status: 404 }
-      );
-    }
-
-    const collection = client.collections.get(coll[0].name);
+    // Ensure user collection exists and get it
+    await weaviateClient.ensureUserCollectionExists(userId);
+    const collection = await weaviateClient.getUserCollection(userId);
 
     // 🧠 Embedding con SAPTIVA
     // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
@@ -85,14 +89,18 @@ export async function POST(request: Request) {
 // 🔍 GET: Obtener registros existentes
 export async function GET() {
   try {
-    const client = await weaviateClient.getClient();
-    const coll = await client.collections.listAll();
-
-    if (!coll || coll.length === 0) {
-      return NextResponse.json({ success: true, records: [] });
+    // Auth: Get current user from session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized", records: [] },
+        { status: 401 }
+      );
     }
+    const userId = session.user.id;
 
-    const collection = client.collections.get(coll[0].name);
+    // Get user-specific collection
+    const collection = await weaviateClient.getUserCollection(userId);
     const response = await collection.query.fetchObjects({ limit: 10000 });
 
     if (!response || !response.objects || response.objects.length === 0) {
@@ -118,18 +126,17 @@ export async function GET() {
 // ✏️ PUT: Actualizar registro existente
 export async function PUT(request: Request) {
   try {
-    const { id, properties } = await request.json();
-    const client = await weaviateClient.getClient();
-    const coll = await client.collections.listAll();
-
-    if (!coll || coll.length === 0) {
+    // Auth: Get current user from session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, error: "No se encontraron colecciones" },
-        { status: 404 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
       );
     }
+    const userId = session.user.id;
 
-    const collection = client.collections.get(coll[0].name);
+    const { id, properties } = await request.json();
 
     if (!id || typeof properties?.text !== "string") {
       return NextResponse.json(
@@ -137,6 +144,9 @@ export async function PUT(request: Request) {
         { status: 400 }
       );
     }
+
+    // Get user-specific collection
+    const collection = await weaviateClient.getUserCollection(userId);
 
     // 🔁 Obtener nuevo vector desde SAPTIVA
     // Fixed: Removed "stream: false" - SAPTIVA Embed API only accepts "model" and "prompt"
@@ -178,18 +188,20 @@ export async function PUT(request: Request) {
 // 🗑️ DELETE: Eliminar registro
 export async function DELETE(request: Request) {
   try {
-    const { id } = await request.json();
-    const client = await weaviateClient.getClient();
-    const coll = await client.collections.listAll();
-
-    if (!coll || coll.length === 0) {
+    // Auth: Get current user from session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { success: false, error: "No se encontraron colecciones" },
-        { status: 404 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
       );
     }
+    const userId = session.user.id;
 
-    const collection = client.collections.get(coll[0].name);
+    const { id } = await request.json();
+
+    // Get user-specific collection
+    const collection = await weaviateClient.getUserCollection(userId);
     await collection.data.deleteById(id);
 
     return NextResponse.json({ success: true });

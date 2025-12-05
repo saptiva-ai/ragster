@@ -3,6 +3,7 @@ import weaviate, { WeaviateClient } from 'weaviate-client';
 /**
  * Singleton service for Weaviate client connection.
  * Supports both local (Docker) and cloud deployments.
+ * Supports per-user collections for data isolation.
  */
 class WeaviateClientService {
   private static instance: WeaviateClientService;
@@ -15,6 +16,17 @@ class WeaviateClientService {
       WeaviateClientService.instance = new WeaviateClientService();
     }
     return WeaviateClientService.instance;
+  }
+
+  /**
+   * Generate a collection name for a specific user.
+   * Sanitizes the userId to be a valid Weaviate collection name.
+   */
+  getUserCollectionName(userId: string): string {
+    // Weaviate collection names must start with uppercase and be alphanumeric
+    // Replace invalid characters and ensure valid format
+    const sanitizedId = userId.replace(/[^a-zA-Z0-9]/g, '');
+    return `Documents_${sanitizedId}`;
   }
 
   /**
@@ -56,6 +68,16 @@ class WeaviateClientService {
     }
 
     return this.client;
+  }
+
+  /**
+   * Ensure a user's collection exists in Weaviate.
+   * Creates it if it doesn't exist.
+   */
+  async ensureUserCollectionExists(userId: string): Promise<string> {
+    const collectionName = this.getUserCollectionName(userId);
+    await this.ensureCollectionExists(collectionName);
+    return collectionName;
   }
 
   /**
@@ -102,11 +124,47 @@ class WeaviateClientService {
   }
 
   /**
+   * Get a user's collection.
+   */
+  async getUserCollection(userId: string) {
+    const collectionName = this.getUserCollectionName(userId);
+    return this.getCollection(collectionName);
+  }
+
+  /**
    * Get a specific collection by name.
    */
   async getCollection(collectionName: string) {
     const client = await this.getClient();
     return client.collections.get(collectionName);
+  }
+
+  /**
+   * List all collections for a specific user.
+   */
+  async listUserCollections(userId: string): Promise<string[]> {
+    const client = await this.getClient();
+    const collections = await client.collections.listAll();
+    const userPrefix = `Documents_${userId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    return collections
+      .filter((col) => col.name.startsWith(userPrefix))
+      .map((col) => col.name);
+  }
+
+  /**
+   * Delete a user's collection.
+   */
+  async deleteUserCollection(userId: string): Promise<void> {
+    const client = await this.getClient();
+    const collectionName = this.getUserCollectionName(userId);
+
+    try {
+      await client.collections.delete(collectionName);
+      console.log(`Collection ${collectionName} deleted.`);
+    } catch (error) {
+      console.error(`Error deleting collection ${collectionName}:`, error);
+      throw error;
+    }
   }
 
   /**

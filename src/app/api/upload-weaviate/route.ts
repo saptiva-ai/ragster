@@ -210,7 +210,8 @@ async function insertDataToWeaviate(
   await fileColection.updateOne({ _id: idUploadFile }, { $set: { status: 2 } });
 
   try {
-    const collection = await weaviateClient.getCollection("DocumentChunk");
+    // Use user-specific collection for data isolation
+    const collection = await weaviateClient.getUserCollection(userId);
     const resultsss = await collection.data.insertMany(docsToInsert);
     console.log(
       "Resultado de la inserción en Weaviate:",
@@ -353,9 +354,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const className = "DocumentChunk";
-    await weaviateClient.ensureCollectionExists(className);
-    console.log(`Clase ${className} asegurada en Weaviate.`);
+    // Ensure user-specific collection exists for data isolation
+    const userCollectionName = await weaviateClient.ensureUserCollectionExists(userId);
+    console.log(`User collection ${userCollectionName} ready in Weaviate.`);
 
     const processedFiles = await fileRetrieval(files, testMode, formNamespace, userId);
 

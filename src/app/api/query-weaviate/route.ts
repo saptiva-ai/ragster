@@ -4,6 +4,8 @@ import { connectToDatabase } from "@/lib/mongodb/client";
 import axios from "axios";
 import { MODEL_NAMES } from "@/config/models";
 import { weaviateClient } from "@/lib/services/weaviate-client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Extrae pregunta de un texto
 function extraerPregunta(texto: string): string | null {
@@ -36,9 +38,10 @@ async function getCustomEmbedding(text: string): Promise<number[]> {
   return response.data.embeddings;
 }
 
-// Busca en Weaviate usando nearVector
-async function searchInWeaviate(queryText: string) {
-  const collection = await weaviateClient.getCollection("DocumentChunk");
+// Busca en Weaviate usando nearVector - searches in user's collection
+async function searchInWeaviate(queryText: string, userId: string) {
+  // Use user-specific collection for data isolation
+  const collection = await weaviateClient.getUserCollection(userId);
   const queryVector = await getCustomEmbedding(queryText);
 
   const result = await collection.query.nearVector(queryVector, {
@@ -57,6 +60,13 @@ export async function POST(req: NextRequest) {
   let response: { properties: { text?: string } }[] = [];
 
   try {
+    // Get user from session for collection isolation
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
     const body = await req.json();
 
     const {
@@ -77,7 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Processing query: "${query}" from: ${contactName}`);
+    console.log(`Processing query: "${query}" from: ${contactName} (user: ${userId})`);
 
     // Guardar mensaje en base de datos
     await collectiondb.insertOne({
@@ -134,12 +144,12 @@ export async function POST(req: NextRequest) {
     if (ambiguous_words.includes(normalizedQuery)) {
       console.log("Consulta ambigua detectada:", normalizedQuery);
       if (pregunta) {
-        response = (await searchInWeaviate(pregunta)) || [];
+        response = (await searchInWeaviate(pregunta, userId)) || [];
       } else {
         response = [];
       }
     } else {
-      response = (await searchInWeaviate(query)) || [];
+      response = (await searchInWeaviate(query, userId)) || [];
     }
 
     console.log("Response:", JSON.stringify(response, null, 2));
