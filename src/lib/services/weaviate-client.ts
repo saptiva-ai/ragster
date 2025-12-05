@@ -1,245 +1,271 @@
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 
 /**
- * Singleton service for Weaviate client connection (v2 API).
- * Supports per-user collections for data isolation.
+ * Global reference for Weaviate client to survive Next.js hot reloads.
+ * In development, Next.js clears the module cache on hot reloads,
+ * but native connections may stay open causing "Too many connections" errors.
  */
-class WeaviateClientService {
-  private static instance: WeaviateClientService;
-  private client: WeaviateClient;
+const globalForWeaviate = global as unknown as { weaviateClient: WeaviateClient };
 
-  private constructor() {
-    // Initialize v2 client
-    this.client = weaviate.client({
-      scheme: process.env.WEAVIATE_SCHEME || 'http',
-      host: process.env.WEAVIATE_HOST || 'localhost:8080',
-    });
-    console.log(`[Weaviate] Connected to ${process.env.WEAVIATE_HOST || 'localhost:8080'}`);
+/**
+ * Get or create the Weaviate client instance.
+ * Uses global storage in development to survive hot reloads.
+ */
+function getClient(): WeaviateClient {
+  if (globalForWeaviate.weaviateClient) {
+    return globalForWeaviate.weaviateClient;
   }
 
-  static getInstance(): WeaviateClientService {
-    if (!WeaviateClientService.instance) {
-      WeaviateClientService.instance = new WeaviateClientService();
-    }
-    return WeaviateClientService.instance;
+  const client = weaviate.client({
+    scheme: process.env.WEAVIATE_SCHEME || 'http',
+    host: process.env.WEAVIATE_HOST || 'localhost:8080',
+  });
+
+  console.log(`[Weaviate] Connected to ${process.env.WEAVIATE_HOST || 'localhost:8080'}`);
+
+  // Only store in global in development to survive hot reloads
+  if (process.env.NODE_ENV !== 'production') {
+    globalForWeaviate.weaviateClient = client;
   }
 
-  /**
-   * Get the raw Weaviate client for direct API access.
-   */
-  getClient(): WeaviateClient {
-    return this.client;
-  }
+  return client;
+}
 
-  /**
-   * Generate a collection name for a specific user.
-   * Sanitizes the userId to be a valid Weaviate class name.
-   */
-  getUserCollectionName(userId: string): string {
-    // Weaviate class names must start with uppercase and be alphanumeric
-    const sanitizedId = userId.replace(/[^a-zA-Z0-9]/g, '');
-    return `Documents${sanitizedId}`;
-  }
+/**
+ * Generate a collection name for a specific user.
+ * Sanitizes the userId to be a valid Weaviate class name.
+ */
+function getUserCollectionName(userId: string): string {
+  // Weaviate class names must start with uppercase and be alphanumeric
+  const sanitizedId = userId.replace(/[^a-zA-Z0-9]/g, '');
+  return `Documents${sanitizedId}`;
+}
 
-  /**
-   * Ensure a user's collection exists in Weaviate.
-   * Creates it if it doesn't exist.
-   */
-  async ensureUserCollectionExists(userId: string): Promise<string> {
-    const className = this.getUserCollectionName(userId);
+/**
+ * Ensure a user's collection exists in Weaviate.
+ * Creates it if it doesn't exist.
+ */
+async function ensureUserCollectionExists(userId: string): Promise<string> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
 
-    const schema = await this.client.schema.getter().do();
-    const exists = schema.classes?.some((c) => c.class === className);
+  const schema = await client.schema.getter().do();
+  const exists = schema.classes?.some((c) => c.class === className);
 
-    if (!exists) {
-      console.log(`[Weaviate] Creating class ${className}...`);
+  if (!exists) {
+    console.log(`[Weaviate] Creating class ${className}...`);
 
-      await this.client.schema
-        .classCreator()
-        .withClass({
-          class: className,
-          properties: [
-            { name: 'text', dataType: ['text'] },
-            { name: 'sourceName', dataType: ['text'] },
-            { name: 'sourceType', dataType: ['text'] },
-            { name: 'sourceSize', dataType: ['text'] },
-            { name: 'uploadDate', dataType: ['text'] },
-            { name: 'chunkIndex', dataType: ['int'] },
-            { name: 'totalChunks', dataType: ['int'] },
-            { name: 'sourceNamespace', dataType: ['text'] },
-            { name: 'prevChunkIndex', dataType: ['int'] },
-            { name: 'nextChunkIndex', dataType: ['int'] },
-            { name: 'userId', dataType: ['text'] },
-          ],
-        })
-        .do();
-
-      console.log(`[Weaviate] Class ${className} created.`);
-    }
-
-    return className;
-  }
-
-  /**
-   * Insert a single object into a user's collection.
-   */
-  async insertObject(
-    userId: string,
-    properties: Record<string, unknown>,
-    vector: number[]
-  ): Promise<string | undefined> {
-    const className = this.getUserCollectionName(userId);
-
-    const result = await this.client.data
-      .creator()
-      .withClassName(className)
-      .withProperties(properties)
-      .withVector(vector)
-      .do();
-
-    return result?.id;
-  }
-
-  /**
-   * Insert multiple objects into a user's collection (batch).
-   */
-  async insertBatch(
-    userId: string,
-    objects: Array<{ properties: Record<string, unknown>; vector: number[] }>
-  ): Promise<void> {
-    const className = this.getUserCollectionName(userId);
-    const batcher = this.client.batch.objectsBatcher();
-
-    for (const obj of objects) {
-      batcher.withObject({
+    await client.schema
+      .classCreator()
+      .withClass({
         class: className,
-        properties: obj.properties,
-        vector: obj.vector,
-      });
-    }
-
-    await batcher.do();
-  }
-
-  /**
-   * Search for similar vectors in a user's collection.
-   */
-  async searchByVector(
-    userId: string,
-    vector: number[],
-    limit: number = 10,
-    fields: string = 'text sourceName chunkIndex totalChunks'
-  ): Promise<Array<{ properties: Record<string, unknown> }>> {
-    const className = this.getUserCollectionName(userId);
-
-    const result = await this.client.graphql
-      .get()
-      .withClassName(className)
-      .withFields(fields)
-      .withNearVector({ vector })
-      .withLimit(limit)
-      .do();
-
-    const objects = result?.data?.Get?.[className] ?? [];
-
-    return objects.map((obj: Record<string, unknown>) => ({
-      properties: obj,
-    }));
-  }
-
-  /**
-   * Get all objects from a user's collection.
-   */
-  async getAllObjects(
-    userId: string,
-    limit: number = 10000
-  ): Promise<Array<{ id: string; properties: Record<string, unknown> }>> {
-    const className = this.getUserCollectionName(userId);
-
-    const result = await this.client.data
-      .getter()
-      .withClassName(className)
-      .withLimit(limit)
-      .do();
-
-    return (result?.objects ?? []).map((obj) => ({
-      id: obj.id!,
-      properties: obj.properties as Record<string, unknown>,
-    }));
-  }
-
-  /**
-   * Update an object in a user's collection.
-   */
-  async updateObject(
-    userId: string,
-    id: string,
-    properties: Record<string, unknown>,
-    vector: number[]
-  ): Promise<void> {
-    const className = this.getUserCollectionName(userId);
-
-    await this.client.data
-      .updater()
-      .withClassName(className)
-      .withId(id)
-      .withProperties(properties)
-      .withVector(vector)
-      .do();
-  }
-
-  /**
-   * Delete an object by ID from a user's collection.
-   */
-  async deleteObject(userId: string, id: string): Promise<void> {
-    const className = this.getUserCollectionName(userId);
-
-    await this.client.data
-      .deleter()
-      .withClassName(className)
-      .withId(id)
-      .do();
-  }
-
-  /**
-   * Delete multiple objects by filter from a user's collection.
-   */
-  async deleteByFilter(
-    userId: string,
-    filterPath: string,
-    filterValue: string
-  ): Promise<void> {
-    const className = this.getUserCollectionName(userId);
-
-    await this.client.batch
-      .objectsBatchDeleter()
-      .withClassName(className)
-      .withWhere({
-        path: [filterPath],
-        operator: 'Equal',
-        valueText: filterValue,
+        properties: [
+          { name: 'text', dataType: ['text'] },
+          { name: 'sourceName', dataType: ['text'] },
+          { name: 'sourceType', dataType: ['text'] },
+          { name: 'sourceSize', dataType: ['text'] },
+          { name: 'uploadDate', dataType: ['text'] },
+          { name: 'chunkIndex', dataType: ['int'] },
+          { name: 'totalChunks', dataType: ['int'] },
+          { name: 'sourceNamespace', dataType: ['text'] },
+          { name: 'prevChunkIndex', dataType: ['int'] },
+          { name: 'nextChunkIndex', dataType: ['int'] },
+          { name: 'userId', dataType: ['text'] },
+          // Fields for sentence chunker
+          { name: 'language', dataType: ['text'] },
+          { name: 'startPosition', dataType: ['int'] },
+          { name: 'endPosition', dataType: ['int'] },
+          { name: 'contentWithoutOverlap', dataType: ['text'] },
+          { name: 'chunkerUsed', dataType: ['text'] },
+        ],
       })
       .do();
+
+    console.log(`[Weaviate] Class ${className} created.`);
   }
 
-  /**
-   * Delete a user's entire collection.
-   */
-  async deleteUserCollection(userId: string): Promise<void> {
-    const className = this.getUserCollectionName(userId);
+  return className;
+}
 
-    try {
-      await this.client.schema.classDeleter().withClassName(className).do();
-      console.log(`[Weaviate] Class ${className} deleted.`);
-    } catch (error) {
-      console.error(`[Weaviate] Error deleting class ${className}:`, error);
-      throw error;
-    }
+/**
+ * Insert a single object into a user's collection.
+ */
+async function insertObject(
+  userId: string,
+  properties: Record<string, unknown>,
+  vector: number[]
+): Promise<string | undefined> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  const result = await client.data
+    .creator()
+    .withClassName(className)
+    .withProperties(properties)
+    .withVector(vector)
+    .do();
+
+  return result?.id;
+}
+
+/**
+ * Insert multiple objects into a user's collection (batch).
+ */
+async function insertBatch(
+  userId: string,
+  objects: Array<{ properties: Record<string, unknown>; vector: number[] }>
+): Promise<void> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+  const batcher = client.batch.objectsBatcher();
+
+  for (const obj of objects) {
+    batcher.withObject({
+      class: className,
+      properties: obj.properties,
+      vector: obj.vector,
+    });
+  }
+
+  await batcher.do();
+}
+
+/**
+ * Search for similar vectors in a user's collection.
+ */
+async function searchByVector(
+  userId: string,
+  vector: number[],
+  limit: number = 10,
+  fields: string = 'text sourceName chunkIndex totalChunks'
+): Promise<Array<{ properties: Record<string, unknown> }>> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  const result = await client.graphql
+    .get()
+    .withClassName(className)
+    .withFields(fields)
+    .withNearVector({ vector })
+    .withLimit(limit)
+    .do();
+
+  const objects = result?.data?.Get?.[className] ?? [];
+
+  return objects.map((obj: Record<string, unknown>) => ({
+    properties: obj,
+  }));
+}
+
+/**
+ * Get all objects from a user's collection.
+ */
+async function getAllObjects(
+  userId: string,
+  limit: number = 10000
+): Promise<Array<{ id: string; properties: Record<string, unknown> }>> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  const result = await client.data
+    .getter()
+    .withClassName(className)
+    .withLimit(limit)
+    .do();
+
+  return (result?.objects ?? []).map((obj) => ({
+    id: obj.id!,
+    properties: obj.properties as Record<string, unknown>,
+  }));
+}
+
+/**
+ * Update an object in a user's collection.
+ */
+async function updateObject(
+  userId: string,
+  id: string,
+  properties: Record<string, unknown>,
+  vector: number[]
+): Promise<void> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  await client.data
+    .updater()
+    .withClassName(className)
+    .withId(id)
+    .withProperties(properties)
+    .withVector(vector)
+    .do();
+}
+
+/**
+ * Delete an object by ID from a user's collection.
+ */
+async function deleteObject(userId: string, id: string): Promise<void> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  await client.data
+    .deleter()
+    .withClassName(className)
+    .withId(id)
+    .do();
+}
+
+/**
+ * Delete multiple objects by filter from a user's collection.
+ */
+async function deleteByFilter(
+  userId: string,
+  filterPath: string,
+  filterValue: string
+): Promise<void> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  await client.batch
+    .objectsBatchDeleter()
+    .withClassName(className)
+    .withWhere({
+      path: [filterPath],
+      operator: 'Equal',
+      valueText: filterValue,
+    })
+    .do();
+}
+
+/**
+ * Delete a user's entire collection.
+ */
+async function deleteUserCollection(userId: string): Promise<void> {
+  const client = getClient();
+  const className = getUserCollectionName(userId);
+
+  try {
+    await client.schema.classDeleter().withClassName(className).do();
+    console.log(`[Weaviate] Class ${className} deleted.`);
+  } catch (error) {
+    console.error(`[Weaviate] Error deleting class ${className}:`, error);
+    throw error;
   }
 }
 
-// Export singleton instance
-export const weaviateClient = WeaviateClientService.getInstance();
-
-// Also export the class for testing purposes
-export { WeaviateClientService };
+/**
+ * Weaviate client service object.
+ * Provides all Weaviate operations with per-user collection isolation.
+ */
+export const weaviateClient = {
+  getClient,
+  getUserCollectionName,
+  ensureUserCollectionExists,
+  insertObject,
+  insertBatch,
+  searchByVector,
+  getAllObjects,
+  updateObject,
+  deleteObject,
+  deleteByFilter,
+  deleteUserCollection,
+};

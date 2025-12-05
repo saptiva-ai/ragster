@@ -65,10 +65,15 @@ export async function POST(req: NextRequest) {
       });
 
       try {
-        // Process document (extract → chunk → embed)
+        // Process document (extract → detect language → chunk by sentences → embed)
         const result = await processor.process(
           file,
-          { userId, namespace: formNamespace }
+          { userId, namespace: formNamespace },
+          {
+            chunkerType: 'sentence',
+            sentencesPerChunk: 5,
+            overlapSentences: 1
+          }
         );
 
         console.log(`[Upload] ${file.name}: ${result.stats.totalChunks} chunks in ${result.stats.processingTimeMs}ms`);
@@ -98,6 +103,12 @@ export async function POST(req: NextRequest) {
             uploadDate: result.metadata.uploadDate,
             sourceNamespace: formNamespace,
             userId: userId,
+            // New fields from sentence chunker
+            language: result.stats.detectedLanguage,
+            startPosition: chunk.startPosition ?? 0,
+            endPosition: chunk.endPosition ?? chunk.content.length,
+            contentWithoutOverlap: chunk.contentWithoutOverlap ?? chunk.content,
+            chunkerUsed: result.stats.chunkerUsed,
           },
           vector: chunk.embedding,
         }));
@@ -106,14 +117,16 @@ export async function POST(req: NextRequest) {
         await weaviateClient.insertBatch(userId, objects);
         console.log(`[Upload] Inserted ${objects.length} chunks into Weaviate`);
 
-        // Update MongoDB status
+        // Update MongoDB status with language info
         await fileCollection.updateOne(
           { _id: fileRecord.insertedId },
           {
             $set: {
               chunks: result.stats.totalChunks,
               vectorsUploaded: result.stats.totalChunks,
-              status: 2 // completed
+              status: 2, // completed
+              language: result.stats.detectedLanguage,
+              chunkerUsed: result.stats.chunkerUsed,
             }
           }
         );
@@ -126,6 +139,8 @@ export async function POST(req: NextRequest) {
           vectorsUploaded: result.stats.totalChunks,
           namespace: formNamespace,
           processingTimeMs: result.stats.processingTimeMs,
+          language: result.stats.detectedLanguage,
+          chunkerUsed: result.stats.chunkerUsed,
         });
 
       } catch (error) {

@@ -2,7 +2,14 @@ import { TextChunker, Embedder } from '@/lib/core/interfaces';
 import { DocumentMetadata, ChunkWithEmbedding } from '@/lib/core/types';
 import { readerFactory } from './readers/reader-factory';
 import { RecursiveChunker } from './chunkers/recursive-chunker';
+import { SentenceChunker } from './chunkers/sentence-chunker';
 import { SaptivaEmbedder } from './embedders/saptiva-embedder';
+import { getLanguageDetector } from './nlp/language-detector';
+
+/**
+ * Chunker type options.
+ */
+export type ChunkerType = 'recursive' | 'sentence';
 
 /**
  * Options for document processing.
@@ -10,6 +17,9 @@ import { SaptivaEmbedder } from './embedders/saptiva-embedder';
 export interface ProcessOptions {
   chunkSize?: number;
   chunkOverlap?: number;
+  chunkerType?: ChunkerType;
+  sentencesPerChunk?: number;
+  overlapSentences?: number;
 }
 
 /**
@@ -22,6 +32,8 @@ export interface ProcessResult {
     totalCharacters: number;
     totalChunks: number;
     processingTimeMs: number;
+    detectedLanguage: string;
+    chunkerUsed: string;
   };
 }
 
@@ -29,23 +41,37 @@ export interface ProcessResult {
  * Document processor service.
  * Orchestrates the full document processing pipeline:
  * 1. Read/extract text from file
- * 2. Chunk the text
- * 3. Generate embeddings for each chunk
+ * 2. Detect language
+ * 3. Chunk the text (using sentence boundaries)
+ * 4. Generate embeddings for each chunk
  */
 export class DocumentProcessor {
-  private chunker: TextChunker;
+  private defaultChunker: TextChunker;
   private embedder: Embedder;
 
   constructor(chunker?: TextChunker, embedder?: Embedder) {
-    this.chunker = chunker || new RecursiveChunker();
+    this.defaultChunker = chunker || new RecursiveChunker();
     this.embedder = embedder || new SaptivaEmbedder();
+  }
+
+  /**
+   * Get the appropriate chunker based on options.
+   */
+  private getChunkerForType(options: ProcessOptions): TextChunker {
+    if (options.chunkerType === 'sentence') {
+      return new SentenceChunker(
+        options.sentencesPerChunk || 5,
+        options.overlapSentences || 1
+      );
+    }
+    return this.defaultChunker;
   }
 
   /**
    * Process a file through the full pipeline.
    * @param file - The file to process
    * @param metadata - Partial metadata (userId, namespace will be added)
-   * @param options - Processing options (chunk size, overlap)
+   * @param options - Processing options (chunk size, overlap, chunker type)
    */
   async process(
     file: File,
@@ -62,26 +88,32 @@ export class DocumentProcessor {
     const extracted = await reader.extract(file);
     console.log(`[DocumentProcessor] Extracted ${extracted.content.length} characters`);
 
-    // 3. Chunk the text
-    const chunks = await this.chunker.chunk(extracted.content, {
+    // 3. Detect language
+    const languageDetector = getLanguageDetector();
+    const langResult = await languageDetector.detect(extracted.content);
+    console.log(`[DocumentProcessor] Detected language: ${langResult.language} (confidence: ${langResult.confidence.toFixed(2)})`);
+
+    // 4. Get chunker and chunk the text
+    const chunker = this.getChunkerForType(options);
+    const chunks = await chunker.chunk(extracted.content, {
       chunkSize: options.chunkSize,
       chunkOverlap: options.chunkOverlap,
     });
-    console.log(`[DocumentProcessor] Created ${chunks.length} chunks using ${this.chunker.getName()}`);
+    console.log(`[DocumentProcessor] Created ${chunks.length} chunks using ${chunker.getName()}`);
 
-    // 4. Generate embeddings for each chunk
+    // 5. Generate embeddings for each chunk
     console.log(`[DocumentProcessor] Generating embeddings using ${this.embedder.getName()}...`);
     const embeddingResults = await this.embedder.embedBatch(
       chunks.map((c) => c.content)
     );
 
-    // 5. Combine chunks with embeddings
+    // 6. Combine chunks with embeddings
     const chunksWithEmbeddings: ChunkWithEmbedding[] = chunks.map((chunk, i) => ({
       ...chunk,
       embedding: embeddingResults[i].embedding,
     }));
 
-    // 6. Build complete metadata
+    // 7. Build complete metadata
     const completeMetadata: DocumentMetadata = {
       filename: file.name,
       fileType: file.type,
@@ -89,7 +121,7 @@ export class DocumentProcessor {
       uploadDate: new Date().toISOString(),
       userId: metadata.userId || '',
       namespace: metadata.namespace || 'default',
-      language: metadata.language,
+      language: langResult.language,
     };
 
     const processingTimeMs = Date.now() - startTime;
@@ -102,6 +134,8 @@ export class DocumentProcessor {
         totalCharacters: extracted.content.length,
         totalChunks: chunks.length,
         processingTimeMs,
+        detectedLanguage: langResult.language,
+        chunkerUsed: chunker.getName(),
       },
     };
   }
@@ -121,10 +155,10 @@ export class DocumentProcessor {
   }
 
   /**
-   * Get the current chunker.
+   * Get the default chunker.
    */
   getChunker(): TextChunker {
-    return this.chunker;
+    return this.defaultChunker;
   }
 
   /**

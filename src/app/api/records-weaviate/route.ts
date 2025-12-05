@@ -37,16 +37,25 @@ export async function POST(request: Request) {
     const embeddingResult = await embedder.embed(text);
 
     // 4. Insert into Weaviate (v2 API)
+    const trimmedText = text.trim();
     const properties = {
+      text: trimmedText,
       sourceName: "Manual",
-      uploadDate: new Date().toISOString(),
-      chunkIndex: 0,
-      totalChunks: 1,
       sourceType: "manual",
-      sourceSize: text.length.toString(),
+      sourceSize: trimmedText.length.toString(),
       sourceNamespace: "default",
-      text: text.trim(),
+      uploadDate: new Date().toISOString(),
+      chunkIndex: 1,
+      totalChunks: 1,
+      prevChunkIndex: null,
+      nextChunkIndex: null,
       userId,
+      // Schema fields from sentence chunker (with sensible defaults for manual entries)
+      language: "en",
+      startPosition: 0,
+      endPosition: trimmedText.length,
+      contentWithoutOverlap: trimmedText,
+      chunkerUsed: "manual",
     };
 
     const id = await weaviateClient.insertObject(userId, properties, embeddingResult.embedding);
