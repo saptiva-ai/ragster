@@ -30,17 +30,14 @@ Una aplicación web moderna construida con Next.js para procesar documentos, gen
 
 ## 🚀 Inicio Rápido
 
-### Instalación en 5 Minutos
+```bash
+git clone https://github.com/saptiva-ai/ragster-weaviate.git
+cd ragster-weaviate
+# Configura tu .env (ver sección Comenzando)
+docker-compose up --build
+```
 
-Sigue nuestra guía paso a paso con configuración automática:
-
-**➡️ [https://saptiva-ai.github.io/ragster/setup5min.html](https://saptiva-ai.github.io/ragster)**
-
-Esta guía incluye:
-- ✅ Configuración automática de variables de entorno
-- ✅ Obtención de API keys paso a paso
-- ✅ Instalación con un solo clic
-- ✅ Verificación de funcionamiento
+La aplicación estará disponible en `http://localhost:3001`
 
 
 ## Gestión de Base de Datos Vectorial
