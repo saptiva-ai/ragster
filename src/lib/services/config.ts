@@ -75,9 +75,9 @@ class ConfigService {
         isCloud,
       },
       embedding: {
-        apiUrl: process.env.EMBEDDING_API_URL || 'https://api.saptiva.com/v1/embeddings',
+        apiUrl: process.env.EMBEDDING_API_URL || 'https://api.saptiva.com/api/embed',
         apiKey: process.env.SAPTIVA_API_KEY!,
-        model: process.env.EMBEDDING_MODEL || 'intfloat/multilingual-e5-large-instruct',
+        model: process.env.EMBEDDING_MODEL || 'Saptiva Embed',
         dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
       },
       llm: {

@@ -1,59 +1,32 @@
 import { NextResponse } from "next/server";
-import weaviate from "weaviate-ts-client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
-
-type WeaviateObject = {
-  id?: string;
-  uuid?: string;
-  properties?: Record<string, unknown>;
-};
-
-const client = weaviate.client({
-  scheme: "http",
-  host: process.env.WEAVIATE_HOST || "localhost:8080",
-});
+import { weaviateClient } from "@/lib/services/weaviate-client";
 
 export async function GET() {
-  const { db } = await connectToDatabase();
-  const fileColection = db.collection("file");
-
   try {
-    // Get all files from MongoDB (not just one)
-    const files = await fileColection
+    // 1. Authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized", files: [] }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    // 2. Get files from MongoDB filtered by userId
+    const { db } = await connectToDatabase();
+    const fileCollection = db.collection("file");
+    const files = await fileCollection
       .find({
+        userId: userId,
         status: { $in: [1, 2] },
       })
       .toArray();
 
-    // 🔹 List all collections in Weaviate
-    const schema = await client.schema.getter().do();
+    // 3. Get all objects from user's Weaviate collection
+    const objects = await weaviateClient.getAllObjects(userId, 1000);
 
-    if (!schema.classes || schema.classes.length === 0) {
-      return NextResponse.json({
-        success: true,
-        sources: [],
-        files: files || [],
-      });
-    }
-
-    const className = schema.classes[0]?.class;
-
-    if (!className) {
-      return NextResponse.json({
-        success: true,
-        sources: [],
-        files: files || [],
-      });
-    }
-
-    // 🔹 Fetch all objects from the first class in the schema
-    const response = await client.data
-      .getter()
-      .withClassName(className)
-      .withLimit(1000)
-      .do();
-
-    // 🔹 Group by sourceName to get unique documents
+    // 4. Group by sourceName to get unique documents
     type SourceData = {
       id: string;
       chunkIndex: number;
@@ -62,14 +35,14 @@ export async function GET() {
 
     const sourceMap = new Map<string, SourceData>();
 
-    (response.objects || []).forEach((obj: WeaviateObject) => {
+    objects.forEach((obj) => {
       const sourceName = obj.properties?.sourceName;
 
       if (typeof sourceName !== "string" || !sourceName) return;
 
       if (!sourceMap.has(sourceName)) {
         sourceMap.set(sourceName, {
-          id: (obj.id || obj.uuid) as string,
+          id: obj.id,
           ...(obj.properties || {}),
           chunkIndex: 1,
         });
@@ -80,18 +53,18 @@ export async function GET() {
       }
     });
 
-    const data = Array.from(sourceMap.values());
+    const sources = Array.from(sourceMap.values());
 
     return NextResponse.json({
       success: true,
-      sources: data,
-      files: files, // Return all files instead of just one
+      sources,
+      files,
     });
   } catch (error) {
-    console.error("Error al consultar:", error);
+    console.error("[Weaviate API] Error:", error);
     return NextResponse.json({
       success: false,
-      error: "Error al consultar",
+      error: "Error fetching documents",
       sources: [],
       files: [],
     });

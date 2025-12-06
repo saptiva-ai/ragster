@@ -1,0 +1,31 @@
+FROM node:20-slim
+
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+  python3 \
+  make \
+  g++ \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
+  libfreetype6-dev \
+  libfontconfig1-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source (will be overwritten by volume mount)
+COPY . .
+
+EXPOSE 3000
+
+# Run dev server with hot reload
+CMD ["npm", "run", "dev"]

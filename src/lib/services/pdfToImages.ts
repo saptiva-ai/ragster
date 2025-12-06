@@ -1,12 +1,10 @@
 // Converts PDF buffer to array of JPEG buffers (one per page)
-// Uses mupdf WASM - no system dependencies
-// Dynamic import to prevent build-time WASM evaluation
+// Uses mupdf WASM - platform independent, works in Docker
 
 const DPI = 300;
 const SCALE = DPI / 72;
 
 export async function pdfToImages(pdfBuffer: Buffer): Promise<Buffer[]> {
-  // Dynamic import to avoid build-time WASM issues
   const mupdf = await import("mupdf");
 
   const doc = mupdf.Document.openDocument(pdfBuffer, "application/pdf");

@@ -33,9 +33,10 @@ export async function DELETE(req: NextRequest) {
     // 3. Delete from Weaviate (v2 API)
     await weaviateClient.deleteByFilter(userId, 'sourceName', name);
 
-    // 4. Delete from MongoDB
+    // 4. Delete ALL matching records from MongoDB (including failed uploads)
     const { db } = await connectToDatabase();
-    await db.collection("file").deleteOne({ filename: name, userId });
+    const result = await db.collection("file").deleteMany({ filename: name, userId });
+    console.log(`[Delete] Removed ${result.deletedCount} MongoDB records`);
 
     console.log(`[Delete] Deleted source: ${name}`);
 

@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { getDocumentProcessor } from "@/lib/services/document-processor";
+import { uploadQueue } from "@/lib/services/queue";
 
-// Force dynamic rendering to prevent build-time evaluation of WASM-based mupdf
+// Force dynamic rendering
 export const dynamic = "force-dynamic";
 
 /**
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const formNamespace = (formData.get("namespace") as string) || namespace;
+    const useOcr = formData.get("useOcr") === "true";
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -63,6 +65,33 @@ export async function POST(req: NextRequest) {
         status: 1, // processing
         userId: userId,
       });
+
+      // Check if OCR mode is requested for PDF files
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (isPdf && useOcr) {
+        // Queue for background OCR processing
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        const jobId = uploadQueue.add({
+          fileBuffer,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          userId,
+          namespace: formNamespace,
+        });
+
+        console.log(`[Upload] Queued OCR job ${jobId} for ${file.name}`);
+
+        processedFiles.push({
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          queued: true,
+          jobId,
+          message: 'Processing in background with OCR',
+        });
+        continue; // Skip to next file
+      }
 
       try {
         // Process document (extract → detect language → chunk by sentences → embed)

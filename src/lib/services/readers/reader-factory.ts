@@ -1,5 +1,6 @@
 import { DocumentReader } from '@/lib/core/interfaces';
-import { PdfReader } from './pdf-reader';
+import { FastPdfReader } from './fast-pdf-reader';
+import { OcrPdfReader } from './ocr-pdf-reader';
 import { DocxReader } from './docx-reader';
 import { TextReader } from './text-reader';
 import { ImageReader } from './image-reader';
@@ -7,18 +8,24 @@ import { ImageReader } from './image-reader';
 /**
  * Factory for document readers.
  * Automatically selects the appropriate reader based on file type.
+ * Supports named reader selection for specific use cases (e.g., OCR).
  */
 class ReaderFactory {
   private readers: DocumentReader[] = [];
+  private namedReaders: Map<string, DocumentReader> = new Map();
 
   constructor() {
-    // Register all available readers
+    // Register all available readers (FastPdfReader is default for PDFs)
     this.readers = [
-      new PdfReader(),
+      new FastPdfReader(),
       new DocxReader(),
       new ImageReader(),
       new TextReader(), // TextReader last as fallback for text-like files
     ];
+
+    // Named readers for explicit selection
+    this.namedReaders.set('FastPdfReader', new FastPdfReader());
+    this.namedReaders.set('OcrPdfReader', new OcrPdfReader());
   }
 
   /**
@@ -54,6 +61,26 @@ class ReaderFactory {
    */
   getReaders(): DocumentReader[] {
     return [...this.readers];
+  }
+
+  /**
+   * Get a specific reader by name.
+   * Useful for explicit reader selection (e.g., OCR mode).
+   * @throws Error if reader name is not found.
+   */
+  getReaderByName(name: string): DocumentReader {
+    const reader = this.namedReaders.get(name);
+    if (!reader) {
+      throw new Error(`Reader not found: ${name}. Available: ${Array.from(this.namedReaders.keys()).join(', ')}`);
+    }
+    return reader;
+  }
+
+  /**
+   * Get list of available reader names.
+   */
+  getAvailableReaderNames(): string[] {
+    return Array.from(this.namedReaders.keys());
   }
 }
 

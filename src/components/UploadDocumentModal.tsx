@@ -22,6 +22,7 @@ export default function UploadDocumentModal({
 }: UploadDocumentModalProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [useOcr, setUseOcr] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
     success: boolean;
     message: string;
@@ -37,6 +38,7 @@ export default function UploadDocumentModal({
         setFiles([]);
         setUploadResult(null);
         setIsUploading(false);
+        setUseOcr(false);
       }, 300);
     }
   }, [isOpen]);
@@ -78,6 +80,7 @@ export default function UploadDocumentModal({
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
+      formData.append("useOcr", useOcr.toString());
 
       // (Opcional) estimación de tiempo — lo dejo tal cual
       const totalSize = files.reduce((sum, file) => sum + file.size, 0);
@@ -93,7 +96,13 @@ export default function UploadDocumentModal({
       clearInterval(progressInterval);
 
       if (response.ok) {
-        const successMsg = `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`;
+        const data = await response.json();
+        const hasQueued = data.processedFiles?.some((f: { queued?: boolean }) => f.queued);
+
+        const successMsg = hasQueued
+          ? `${files.length} ${files.length === 1 ? "documento" : "documentos"} en cola para procesamiento OCR.`
+          : `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`;
+
         toast.success(successMsg);
         setUploadResult({
           success: true,
@@ -201,6 +210,35 @@ export default function UploadDocumentModal({
                     <span className="ml-1 text-sm text-black">{files[0].name}</span>
                   </div>
                 )}
+              </div>
+
+              {/* OCR Toggle */}
+              <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center">
+                  <span className="text-sm font-medium text-black">Modo OCR</span>
+                  <div className="relative ml-2 group">
+                    <svg className="h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                      Para documentos escaneados o PDFs complejos con imágenes
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUseOcr(!useOcr)}
+                  disabled={isUploading}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#01f6d2] focus:ring-offset-2 ${
+                    useOcr ? 'bg-[#01f6d2]' : 'bg-gray-200'
+                  } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      useOcr ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             </>
           )}
