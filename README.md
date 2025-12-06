@@ -92,19 +92,22 @@ cd ragster-weaviate
 3. Crea un archivo `.env` con las variables requeridas:
 
 ```env
-# Configuración de API Saptiva
-SAPTIVA_API_KEY=tu_api_key
+# --- REQUIRED: Saptiva API ---
+SAPTIVA_API_KEY=va-ai-tu_api_key_aqui
 SAPTIVA_API_BASE_URL=https://api.saptiva.com
-EMBEDDING_API_URL=https://api.saptiva.com/api/embed
+EMBEDDING_API_URL=https://api.saptiva.com/api/embeddings
 
-# NextAuth (usa una cadena aleatoria de al menos 32 caracteres)
-NEXTAUTH_SECRET=
+# --- REQUIRED: NextAuth ---
+NEXTAUTH_SECRET=rG7kX9mP2vL5nQ8wY3jF6hB4tC1sA0zE
+NEXTAUTH_URL=http://localhost:3001
 
-# Next.js
-NEXT_PUBLIC_CHAT_API=http://localhost:3001
+# --- OPTIONAL: Chat API ---
+NEXT_PUBLIC_CHAT_API=https://api.saptiva.com/v1/chat/completions
 
-# WhatsApp Business (Opcional)
-URL_META=https://graph.facebook.com/v19.0
+# --- AUTO-CONFIGURED (Docker sets these) ---
+# MONGODB_URI=mongodb://mongo:27017/test
+# MONGODB_DB=test
+# WEAVIATE_HOST=weaviate:8080
 ```
 
 4. Ejecuta con Docker Compose:
