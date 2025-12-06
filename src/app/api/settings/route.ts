@@ -93,11 +93,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {key, data} = body;
 
-    console.log(
-      `Recibida solicitud para guardar configuración "${key}":`,
-      data,
-    );
-
     if (!key || !data) {
       console.error("Solicitud de guardado incompleta:", body);
       return NextResponse.json(
