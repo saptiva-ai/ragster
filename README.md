@@ -42,9 +42,6 @@ Esta guía incluye:
 - ✅ Instalación con un solo clic
 - ✅ Verificación de funcionamiento
 
-### Instalación Manual
-
-Si prefieres instalación manual, continúa con las instrucciones detalladas más abajo.
 
 ## Gestión de Base de Datos Vectorial
 
@@ -71,23 +68,18 @@ Si prefieres instalación manual, continúa con las instrucciones detalladas má
 
 ### Configuración del Entorno
 
-Agrega lo siguiente a tu `.env.local`:
-
-```env
-WEAVIATE_HOST=your_weaviate_host
-WEAVIATE_API_KEY=your_weaviate_api_key
-```
+Weaviate se configura automáticamente con Docker Compose. No requiere configuración adicional.
 
 ## Comenzando
 
 ### Prerrequisitos
 
-- Node.js >= 20.18.1 ([descargar](https://nodejs.org/))
-- MongoDB ([descargar](https://www.mongodb.com/try/download/community))
+- Docker y Docker Compose ([descargar](https://www.docker.com/products/docker-desktop/))
 - API key de Saptiva
-- Cuenta y API key de Weaviate
 
-### Instalación
+### Instalación con Docker
+
+Docker Compose incluye MongoDB y Weaviate localmente, sin necesidad de servicios externos.
 
 1. Clona el repositorio:
 
@@ -96,56 +88,37 @@ git clone https://github.com/saptiva-ai/ragster-weaviate.git
 cd ragster-weaviate
 ```
 
-2. Instala las dependencias:
-
-```bash
-npm install
-```
-
-3. **Obtén tus API keys:**
-
-   **API Key de Saptiva:**
+2. **Obtén tu API key de Saptiva:**
    - Visita [lab.saptiva.com](https://lab.saptiva.com/)
    - Inicia sesión → Crear API Key → Copiar key (comienza con `va-ai-`)
 
-   **Credenciales de Weaviate:**
-   - Visita [console.weaviate.cloud](https://console.weaviate.cloud/)
-   - Crear cluster gratuito → Copiar REST Endpoint + API Key
-
-4. Crea un archivo `.env.local` con tus variables de entorno:
+3. Crea un archivo `.env` con las variables requeridas:
 
 ```env
 # Configuración de API Saptiva
-SAPTIVA_API_KEY=
+SAPTIVA_API_KEY=tu_api_key
 SAPTIVA_API_BASE_URL=https://api.saptiva.com
 EMBEDDING_API_URL=https://api.saptiva.com/api/embed
 
-# MongoDB
-MONGODB_URI=
-MONGODB_DB=
-
-# Weaviate
-WEAVIATE_HOST=
-WEAVIATE_API_KEY=
-
-# NextAuth
-NEXTAUTH_URL=http://localhost:3000
+# NextAuth (usa una cadena aleatoria de al menos 32 caracteres)
 NEXTAUTH_SECRET=
 
 # Next.js
-NEXT_PUBLIC_CHAT_API=http://localhost:3000
+NEXT_PUBLIC_CHAT_API=http://localhost:3001
 
 # WhatsApp Business (Opcional)
 URL_META=https://graph.facebook.com/v19.0
 ```
 
-5. Ejecuta el servidor de desarrollo:
+4. Ejecuta con Docker Compose:
 
 ```bash
-npm run dev
+docker-compose up --build
 ```
 
-La aplicación estará disponible en `http://localhost:3000`
+La aplicación estará disponible en `http://localhost:3001`
+
+> **Nota:** MongoDB y Weaviate se configuran automáticamente dentro de Docker. No necesitas instalar ni configurar estos servicios externamente.
 
 ## Estructura del Proyecto
 
@@ -156,12 +129,12 @@ RAGster/
 └── package.json     # Dependencias del proyecto
 ```
 
-## Scripts Disponibles
+## Comandos Docker
 
-- `npm run dev` - Iniciar servidor de desarrollo con Turbopack
-- `npm run build` - Construir para producción
-- `npm run start` - Iniciar servidor de producción
-- `npm run lint` - Ejecutar ESLint
+- `docker-compose up --build` - Construir e iniciar todos los servicios
+- `docker-compose up` - Iniciar servicios (sin reconstruir)
+- `docker-compose down` - Detener todos los servicios
+- `docker-compose logs -f ragster` - Ver logs de la aplicación
 
 ## Dependencias
 
