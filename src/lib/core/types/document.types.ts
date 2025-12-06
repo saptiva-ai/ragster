@@ -8,6 +8,7 @@ export interface DocumentMetadata {
   userId: string;
   namespace: string;
   language?: string;
+  pageCount?: number; // For PDFs
 }
 
 export interface ExtractedDocument {

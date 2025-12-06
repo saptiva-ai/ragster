@@ -1,5 +1,5 @@
 import { JobQueue } from '@/lib/core/interfaces';
-import { QueueJob, JobStatus, UploadJobPayload } from '@/lib/core/types';
+import { QueueJob, UploadJobPayload } from '@/lib/core/types';
 import { OcrPdfReader } from '../readers/ocr-pdf-reader';
 import { SentenceChunker } from '../chunkers/sentence-chunker';
 import { SaptivaEmbedder } from '../embedders/saptiva-embedder';
@@ -117,12 +117,13 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
   private async processJob(job: QueueJob, payload: UploadJobPayload): Promise<void> {
     const { fileBuffer, fileName, fileType, fileSize, userId, namespace } = payload;
 
-    // Create File object from buffer
-    const file = new File([fileBuffer], fileName, { type: fileType });
-
-    // 1. OCR extraction
+    // 1. OCR extraction (pass Buffer directly - no wasteful conversions)
     const reader = new OcrPdfReader();
-    const extracted = await reader.extract(file);
+    const extracted = await reader.extractFromBuffer(fileBuffer, {
+      filename: fileName,
+      fileType: fileType,
+      fileSize: fileSize,
+    });
     job.progress = 30;
     this.jobs.set(job.id, job);
 

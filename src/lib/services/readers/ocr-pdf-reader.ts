@@ -29,6 +29,21 @@ export class OcrPdfReader implements DocumentReader {
 
   async extract(file: File): Promise<ExtractedDocument> {
     const buffer = Buffer.from(await file.arrayBuffer());
+    return this.extractFromBuffer(buffer, {
+      filename: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    });
+  }
+
+  /**
+   * Extract text from a PDF buffer directly.
+   * More efficient when you already have a Buffer (avoids Buffer → File → Buffer conversion).
+   */
+  async extractFromBuffer(
+    buffer: Buffer,
+    metadata: { filename: string; fileType: string; fileSize: number }
+  ): Promise<ExtractedDocument> {
     const images = await pdfToImages(buffer);
     const texts: string[] = [];
 
@@ -47,9 +62,9 @@ export class OcrPdfReader implements DocumentReader {
     return {
       content: texts.join('\n\n'),
       metadata: {
-        filename: file.name,
-        fileType: file.type,
-        fileSize: file.size,
+        filename: metadata.filename,
+        fileType: metadata.fileType,
+        fileSize: metadata.fileSize,
         uploadDate: new Date().toISOString(),
         userId: '',
         namespace: '',
