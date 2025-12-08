@@ -98,7 +98,7 @@ SAPTIVA_API_BASE_URL=https://api.saptiva.com
 EMBEDDING_API_URL=https://api.saptiva.com/api/embeddings
 
 # --- REQUIRED: NextAuth ---
-NEXTAUTH_SECRET=rG7kX9mP2vL5nQ8wY3jF6hB4tC1sA0zE
+NEXTAUTH_SECRET=<SECRET DE NextAuth>
 NEXTAUTH_URL=http://localhost:3001
 
 # --- OPTIONAL: Chat API ---
@@ -164,4 +164,4 @@ RAGster/
 
 ## Licencia
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está licenciado bajo la Licencia Apache 2.0 - ver el archivo [LICENSE](LICENSE) para más detalles.
