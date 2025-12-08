@@ -15,7 +15,6 @@ export async function DELETE(req: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = session.user.id;
 
     // 2. Parse request
     const body = await req.json();
@@ -28,14 +27,14 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    console.log(`[Delete] Deleting source: ${name} for user: ${userId}`);
+    console.log(`[Delete] Deleting source: ${name}`);
 
-    // 3. Delete from Weaviate (v2 API)
-    await weaviateClient.deleteByFilter(userId, 'sourceName', name);
+    // 3. Delete from Weaviate (v2 API) - shared collection
+    await weaviateClient.deleteByFilter('sourceName', name);
 
     // 4. Delete ALL matching records from MongoDB (including failed uploads)
     const { db } = await connectToDatabase();
-    const result = await db.collection("file").deleteMany({ filename: name, userId });
+    const result = await db.collection("file").deleteMany({ filename: name });
     console.log(`[Delete] Removed ${result.deletedCount} MongoDB records`);
 
     console.log(`[Delete] Deleted source: ${name}`);

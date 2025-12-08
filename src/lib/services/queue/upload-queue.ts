@@ -145,8 +145,8 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     job.progress = 80;
     this.jobs.set(job.id, job);
 
-    // 5. Insert into Weaviate
-    await weaviateClient.ensureUserCollectionExists(userId);
+    // 5. Insert into Weaviate (shared collection)
+    await weaviateClient.ensureCollectionExists();
 
     const objects = chunks.map((chunk, index) => ({
       properties: {
@@ -170,7 +170,7 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
       vector: embeddings[index].embedding,
     }));
 
-    await weaviateClient.insertBatch(userId, objects);
+    await weaviateClient.insertBatch(objects);
     job.progress = 90;
     this.jobs.set(job.id, job);
 

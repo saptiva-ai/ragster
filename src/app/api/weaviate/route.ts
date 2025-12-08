@@ -11,20 +11,17 @@ export async function GET() {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized", files: [] }, { status: 401 });
     }
-    const userId = session.user.id;
-
-    // 2. Get files from MongoDB filtered by userId
+    // 2. Get ALL files from MongoDB (shared across users)
     const { db } = await connectToDatabase();
     const fileCollection = db.collection("file");
     const files = await fileCollection
       .find({
-        userId: userId,
         status: { $in: [1, 2] },
       })
       .toArray();
 
-    // 3. Get all objects from user's Weaviate collection
-    const objects = await weaviateClient.getAllObjects(userId, 1000);
+    // 3. Get all objects from shared Weaviate collection
+    const objects = await weaviateClient.getAllObjects(1000);
 
     // 4. Group by sourceName to get unique documents
     type SourceData = {

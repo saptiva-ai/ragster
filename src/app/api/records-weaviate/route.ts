@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Ensure collection exists and generate embedding
-    await weaviateClient.ensureUserCollectionExists(userId);
+    await weaviateClient.ensureCollectionExists();
 
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(text);
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       chunkerUsed: "manual",
     };
 
-    const id = await weaviateClient.insertObject(userId, properties, embeddingResult.embedding);
+    const id = await weaviateClient.insertObject(properties, embeddingResult.embedding);
 
     console.log("[Records] Created manual record:", id);
 
@@ -87,10 +87,9 @@ export async function GET() {
         { status: 401 }
       );
     }
-    const userId = session.user.id;
 
-    // 2. Fetch records from Weaviate (v2 API)
-    const records = await weaviateClient.getAllObjects(userId, 10000);
+    // 2. Fetch records from Weaviate (v2 API) - shared collection
+    const records = await weaviateClient.getAllObjects(10000);
 
     return NextResponse.json({ success: true, records });
   } catch (error) {
@@ -117,7 +116,6 @@ export async function PUT(request: Request) {
         { status: 401 }
       );
     }
-    const userId = session.user.id;
 
     // 2. Parse request
     const { id, properties } = await request.json();
@@ -133,7 +131,7 @@ export async function PUT(request: Request) {
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(properties.text);
 
-    await weaviateClient.updateObject(userId, id, properties, embeddingResult.embedding);
+    await weaviateClient.updateObject(id, properties, embeddingResult.embedding);
 
     console.log(`[Records] Updated record: ${id}`);
 
@@ -161,12 +159,11 @@ export async function DELETE(request: Request) {
         { status: 401 }
       );
     }
-    const userId = session.user.id;
 
     // 2. Parse request and delete (v2 API)
     const { id } = await request.json();
 
-    await weaviateClient.deleteObject(userId, id);
+    await weaviateClient.deleteObject(id);
 
     console.log(`[Records] Deleted record: ${id}`);
 

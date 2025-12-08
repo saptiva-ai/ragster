@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { getSaptivaEmbedder } from "@/lib/services/embedders/saptiva-embedder";
@@ -28,13 +26,12 @@ const AMBIGUOUS_WORDS = [
 /**
  * Search in Weaviate using vector similarity
  */
-async function searchInWeaviate(queryText: string, userId: string) {
+async function searchInWeaviate(queryText: string) {
   const embedder = getSaptivaEmbedder();
   const embeddingResult = await embedder.embed(queryText);
 
-  // Use v2 API via weaviateClient
+  // Use v2 API via weaviateClient (shared collection)
   const results = await weaviateClient.searchByVector(
-    userId,
     embeddingResult.embedding,
     10,
     'text sourceName chunkIndex totalChunks'
@@ -98,15 +95,13 @@ Mensaje actual del usuario: "${query}"`;
 /**
  * POST /api/query-weaviate
  * Query documents and generate AI response.
+ * Note: Auth check removed to allow WhatsApp webhook access.
+ * All users share the same document pool.
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const userId = session.user.id;
+    // Note: Auth not required - WhatsApp webhook needs access
+    // All users share the same document pool
 
     // 2. Parse request
     const body = await req.json();
@@ -167,10 +162,10 @@ export async function POST(req: NextRequest) {
     const isAmbiguous = AMBIGUOUS_WORDS.includes(normalizedQuery);
     const searchQuery = isAmbiguous && previousQuestion ? previousQuestion : query;
 
-    // 6. Search in Weaviate
+    // 6. Search in Weaviate (shared collection)
     const results = isAmbiguous && !previousQuestion
       ? []
-      : await searchInWeaviate(searchQuery, userId);
+      : await searchInWeaviate(searchQuery);
 
     // 7. Build context and prompt
     const context = buildContext(results);

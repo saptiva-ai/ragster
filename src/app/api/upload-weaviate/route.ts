@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Ensure user collection exists in Weaviate
-    const userCollectionName = await weaviateClient.ensureUserCollectionExists(userId);
-    console.log(`[Upload] User collection ${userCollectionName} ready`);
+    // 3. Ensure shared collection exists in Weaviate
+    const collectionName = await weaviateClient.ensureCollectionExists();
+    console.log(`[Upload] Collection ${collectionName} ready`);
 
     // 4. Process each file
     const { db } = await connectToDatabase();
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         }));
 
         // Insert batch into Weaviate (v2 API)
-        await weaviateClient.insertBatch(userId, objects);
+        await weaviateClient.insertBatch(objects);
         console.log(`[Upload] Inserted ${objects.length} chunks into Weaviate`);
 
         // Update MongoDB status with language info

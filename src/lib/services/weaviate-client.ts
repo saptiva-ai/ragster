@@ -1,6 +1,12 @@
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
 
 /**
+ * Shared collection name for all documents.
+ * All users share a single document pool.
+ */
+const COLLECTION_NAME = 'Documents';
+
+/**
  * Global reference for Weaviate client to survive Next.js hot reloads.
  * In development, Next.js clears the module cache on hot reloads,
  * but native connections may stay open causing "Too many connections" errors.
@@ -32,22 +38,20 @@ function getClient(): WeaviateClient {
 }
 
 /**
- * Generate a collection name for a specific user.
- * Sanitizes the userId to be a valid Weaviate class name.
+ * Get the shared collection name.
+ * @deprecated userId parameter is ignored - all users share one collection
  */
-function getUserCollectionName(userId: string): string {
-  // Weaviate class names must start with uppercase and be alphanumeric
-  const sanitizedId = userId.replace(/[^a-zA-Z0-9]/g, '');
-  return `Documents${sanitizedId}`;
+function getCollectionName(): string {
+  return COLLECTION_NAME;
 }
 
 /**
- * Ensure a user's collection exists in Weaviate.
+ * Ensure the shared Documents collection exists in Weaviate.
  * Creates it if it doesn't exist.
  */
-async function ensureUserCollectionExists(userId: string): Promise<string> {
+async function ensureCollectionExists(): Promise<string> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   const schema = await client.schema.getter().do();
   const exists = schema.classes?.some((c) => c.class === className);
@@ -88,15 +92,14 @@ async function ensureUserCollectionExists(userId: string): Promise<string> {
 }
 
 /**
- * Insert a single object into a user's collection.
+ * Insert a single object into the shared collection.
  */
 async function insertObject(
-  userId: string,
   properties: Record<string, unknown>,
   vector: number[]
 ): Promise<string | undefined> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   const result = await client.data
     .creator()
@@ -109,14 +112,13 @@ async function insertObject(
 }
 
 /**
- * Insert multiple objects into a user's collection (batch).
+ * Insert multiple objects into the shared collection (batch).
  */
 async function insertBatch(
-  userId: string,
   objects: Array<{ properties: Record<string, unknown>; vector: number[] }>
 ): Promise<void> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
   const batcher = client.batch.objectsBatcher();
 
   for (const obj of objects) {
@@ -131,16 +133,15 @@ async function insertBatch(
 }
 
 /**
- * Search for similar vectors in a user's collection.
+ * Search for similar vectors in the shared collection.
  */
 async function searchByVector(
-  userId: string,
   vector: number[],
   limit: number = 10,
   fields: string = 'text sourceName chunkIndex totalChunks'
 ): Promise<Array<{ properties: Record<string, unknown> }>> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   const result = await client.graphql
     .get()
@@ -158,14 +159,13 @@ async function searchByVector(
 }
 
 /**
- * Get all objects from a user's collection.
+ * Get all objects from the shared collection.
  */
 async function getAllObjects(
-  userId: string,
   limit: number = 10000
 ): Promise<Array<{ id: string; properties: Record<string, unknown> }>> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   const result = await client.data
     .getter()
@@ -180,16 +180,15 @@ async function getAllObjects(
 }
 
 /**
- * Update an object in a user's collection.
+ * Update an object in the shared collection.
  */
 async function updateObject(
-  userId: string,
   id: string,
   properties: Record<string, unknown>,
   vector: number[]
 ): Promise<void> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   await client.data
     .updater()
@@ -201,11 +200,11 @@ async function updateObject(
 }
 
 /**
- * Delete an object by ID from a user's collection.
+ * Delete an object by ID from the shared collection.
  */
-async function deleteObject(userId: string, id: string): Promise<void> {
+async function deleteObject(id: string): Promise<void> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   await client.data
     .deleter()
@@ -215,15 +214,14 @@ async function deleteObject(userId: string, id: string): Promise<void> {
 }
 
 /**
- * Delete multiple objects by filter from a user's collection.
+ * Delete multiple objects by filter from the shared collection.
  */
 async function deleteByFilter(
-  userId: string,
   filterPath: string,
   filterValue: string
 ): Promise<void> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   await client.batch
     .objectsBatchDeleter()
@@ -237,11 +235,12 @@ async function deleteByFilter(
 }
 
 /**
- * Delete a user's entire collection.
+ * Delete the entire shared collection.
+ * WARNING: This deletes ALL documents for ALL users!
  */
-async function deleteUserCollection(userId: string): Promise<void> {
+async function deleteCollection(): Promise<void> {
   const client = getClient();
-  const className = getUserCollectionName(userId);
+  const className = COLLECTION_NAME;
 
   try {
     await client.schema.classDeleter().withClassName(className).do();
@@ -254,12 +253,12 @@ async function deleteUserCollection(userId: string): Promise<void> {
 
 /**
  * Weaviate client service object.
- * Provides all Weaviate operations with per-user collection isolation.
+ * All users share a single Documents collection.
  */
 export const weaviateClient = {
   getClient,
-  getUserCollectionName,
-  ensureUserCollectionExists,
+  getCollectionName,
+  ensureCollectionExists,
   insertObject,
   insertBatch,
   searchByVector,
@@ -267,5 +266,5 @@ export const weaviateClient = {
   updateObject,
   deleteObject,
   deleteByFilter,
-  deleteUserCollection,
+  deleteCollection,
 };
