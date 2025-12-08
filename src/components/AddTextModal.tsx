@@ -144,7 +144,7 @@ export default function AddTextModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800 bg-opacity-75 flex justify-center items-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-100/90 backdrop-blur-sm flex justify-center items-center p-4">
       <div
         ref={modalRef}
         className="bg-white rounded-lg max-w-lg w-full shadow-xl transition-all transform"

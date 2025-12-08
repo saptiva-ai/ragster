@@ -83,7 +83,7 @@ export default function WeaviateRecordDetails({
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-gray-900/90 to-indigo-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-100/90 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
