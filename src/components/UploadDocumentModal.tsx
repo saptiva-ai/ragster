@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "react-hot-toast";
 import {
   XMarkIcon,
@@ -15,6 +15,17 @@ interface UploadDocumentModalProps {
   onSuccess: () => void;
 }
 
+type ProcessingStage = 'queued' | 'extracting' | 'chunking' | 'embedding' | 'saving' | 'done';
+
+const STAGE_LABELS: Record<ProcessingStage, string> = {
+  queued: 'En cola...',
+  extracting: 'Extrayendo texto...',
+  chunking: 'Dividiendo en fragmentos...',
+  embedding: 'Generando embeddings...',
+  saving: 'Guardando en base de datos...',
+  done: 'Completado',
+};
+
 export default function UploadDocumentModal({
   isOpen,
   onClose,
@@ -28,8 +39,59 @@ export default function UploadDocumentModal({
     message: string;
   } | null>(null);
 
+  // Progress tracking for OCR jobs
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<ProcessingStage | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [ocrPage, setOcrPage] = useState<number | null>(null);
+  const [ocrTotalPages, setOcrTotalPages] = useState<number | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Poll job status when we have a jobId
+  const pollJobStatus = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/queue-status/${id}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    const interval = setInterval(async () => {
+      const data = await pollJobStatus(jobId);
+      if (!data) return;
+
+      setProgress(data.progress || 0);
+      setStage(data.stage);
+      setOcrPage(data.ocrPage || null);
+      setOcrTotalPages(data.ocrTotalPages || null);
+
+      if (data.status === 'completed') {
+        clearInterval(interval);
+        setIsUploading(false);
+        const successMsg = `Documento procesado con ${data.result?.chunks || 0} fragmentos`;
+        toast.success(successMsg);
+        setUploadResult({ success: true, message: successMsg });
+        setTimeout(() => onSuccess(), 1500);
+      } else if (data.status === 'failed') {
+        clearInterval(interval);
+        setIsUploading(false);
+        setJobError(data.error || 'Error desconocido');
+        toast.error(data.error || 'Error al procesar');
+        setUploadResult({ success: false, message: data.error || 'Error al procesar' });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [jobId, onSuccess, pollJobStatus]);
 
   // Resetear estado al cerrar
   useEffect(() => {
@@ -39,6 +101,12 @@ export default function UploadDocumentModal({
         setUploadResult(null);
         setIsUploading(false);
         setUseOcr(false);
+        setJobId(null);
+        setProgress(0);
+        setStage(null);
+        setJobError(null);
+        setOcrPage(null);
+        setOcrTotalPages(null);
       }, 300);
     }
   }, [isOpen]);
@@ -76,56 +144,47 @@ export default function UploadDocumentModal({
 
     setIsUploading(true);
     setUploadResult(null);
+    setJobError(null);
+    setProgress(0);
+    setStage('queued'); // All uploads go through queue now
 
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
       formData.append("useOcr", useOcr.toString());
 
-      // (Opcional) estimación de tiempo — lo dejo tal cual
-      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const estimatedTimePerMB = 500;
-      const totalEstimatedTime = (totalSize / (1024 * 1024)) * estimatedTimePerMB;
-      const progressInterval = setInterval(() => {}, totalEstimatedTime / 20);
-
       const response = await fetch("/api/upload-weaviate", {
         method: "POST",
         body: formData,
       });
 
-      clearInterval(progressInterval);
-
       if (response.ok) {
         const data = await response.json();
-        const hasQueued = data.processedFiles?.some((f: { queued?: boolean }) => f.queued);
+        const queuedFile = data.processedFiles?.find((f: { queued?: boolean; jobId?: string }) => f.queued && f.jobId);
 
-        const successMsg = hasQueued
-          ? `${files.length} ${files.length === 1 ? "documento" : "documentos"} en cola para procesamiento OCR.`
-          : `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`;
-
-        toast.success(successMsg);
-        setUploadResult({
-          success: true,
-          message: successMsg,
-        });
-        setTimeout(() => onSuccess(), 1500);
+        if (queuedFile?.jobId) {
+          // All uploads now go through queue - start polling for progress
+          setJobId(queuedFile.jobId);
+          // Don't show toast yet, let polling handle completion
+        } else {
+          // Fallback (shouldn't happen with new API)
+          setIsUploading(false);
+          const successMsg = `${files.length} ${files.length === 1 ? "documento subido" : "documentos subidos"} con éxito.`;
+          toast.success(successMsg);
+          setUploadResult({ success: true, message: successMsg });
+          setTimeout(() => onSuccess(), 1500);
+        }
       } else {
         const error = await response.json();
         const errorMsg = error.error || "Error al subir los documentos";
         toast.error(errorMsg);
-        setUploadResult({
-          success: false,
-          message: errorMsg,
-        });
+        setUploadResult({ success: false, message: errorMsg });
+        setIsUploading(false);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Error desconocido al subir los documentos";
       toast.error(errorMsg);
-      setUploadResult({
-        success: false,
-        message: errorMsg,
-      });
-    } finally {
+      setUploadResult({ success: false, message: errorMsg });
       setIsUploading(false);
     }
   };
@@ -168,6 +227,46 @@ export default function UploadDocumentModal({
                 {uploadResult.success ? "Documento procesado" : "Error al procesar documento"}
               </h3>
               <p className="mt-1 text-sm text-black">{uploadResult.message}</p>
+            </div>
+          ) : isUploading && stage ? (
+            /* Progress display during processing */
+            <div className="py-4">
+              <div className="flex items-center mb-3">
+                <DocumentTextIcon className="h-5 w-5 text-[#01f6d2] mr-2" />
+                <span className="text-sm font-medium text-black truncate">{files[0]?.name}</span>
+              </div>
+
+              {/* Stage indicator */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 border-2 border-[#01f6d2] border-t-transparent rounded-full animate-spin mr-2" />
+                    <span className="text-sm text-gray-700">{stage ? STAGE_LABELS[stage] : 'Procesando...'}</span>
+                  </div>
+                  {/* OCR page progress */}
+                  {ocrPage && ocrTotalPages && stage === 'extracting' && (
+                    <span className="text-sm text-gray-500">
+                      Página {ocrPage}/{ocrTotalPages}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-[#01f6d2] h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="text-right text-xs text-gray-500 mt-1">{progress}%</div>
+
+              {/* Error display */}
+              {jobError && (
+                <div className="mt-3 p-2 bg-red-50 rounded text-sm text-red-600">
+                  {jobError}
+                </div>
+              )}
             </div>
           ) : (
             <>

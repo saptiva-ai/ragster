@@ -47,6 +47,8 @@
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
     "react-hot-toast": "^2.6.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
     "tar-fs": ">=3.1.1",
     "tls": "^0.0.1",
     "uuid": "^11.1.0",

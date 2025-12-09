@@ -24,9 +24,13 @@ export async function GET(
     id: job.id,
     status: job.status,
     progress: job.progress,
+    stage: job.stage,
     error: job.error,
     result: job.result,
     createdAt: job.createdAt,
     completedAt: job.completedAt,
+    // OCR progress info
+    ocrPage: job.ocrPage,
+    ocrTotalPages: job.ocrTotalPages,
   });
 }

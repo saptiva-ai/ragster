@@ -3,10 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
+import { ObjectId } from "mongodb";
 
 /**
  * DELETE /api/delete-weaviate
  * Delete a document source and its chunks from Weaviate.
+ *
+ * Supports two modes:
+ * 1. Delete by mongoId (single document) - for force delete of stuck docs
+ * 2. Delete by name (all docs with that name) - for normal delete
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -18,26 +23,61 @@ export async function DELETE(req: NextRequest) {
 
     // 2. Parse request
     const body = await req.json();
-    const { name } = body;
+    const { name, mongoId, deleteWeaviate = true } = body;
 
-    if (!name) {
+    if (!name && !mongoId) {
       return NextResponse.json(
-        { error: "Source name is required" },
+        { error: "Source name or mongoId is required" },
         { status: 400 }
       );
     }
 
-    console.log(`[Delete] Deleting source: ${name}`);
-
-    // 3. Delete from Weaviate (v2 API) - shared collection
-    await weaviateClient.deleteByFilter('sourceName', name);
-
-    // 4. Delete ALL matching records from MongoDB (including failed uploads)
     const { db } = await connectToDatabase();
-    const result = await db.collection("file").deleteMany({ filename: name });
-    console.log(`[Delete] Removed ${result.deletedCount} MongoDB records`);
 
-    console.log(`[Delete] Deleted source: ${name}`);
+    // Mode 1: Delete single document by MongoDB ID (for stuck docs)
+    if (mongoId) {
+      console.log(`[Delete] Force deleting single document by mongoId: ${mongoId}`);
+
+      // Get the document first to check its status
+      const doc = await db.collection("file").findOne({ _id: new ObjectId(mongoId) });
+
+      if (!doc) {
+        return NextResponse.json({ error: "Document not found" }, { status: 404 });
+      }
+
+      // Only delete from Weaviate if document was completed (status=2) and deleteWeaviate is true
+      if (doc.status === 2 && deleteWeaviate) {
+        const weaviateDeleted = await weaviateClient.deleteByFilter('sourceName', doc.filename);
+        console.log(`[Delete] Removed ${weaviateDeleted} chunks from Weaviate for ${doc.filename}`);
+      } else {
+        console.log(`[Delete] Skipping Weaviate delete (status=${doc.status}, doc was not completed)`);
+      }
+
+      // Delete from MongoDB
+      await db.collection("file").deleteOne({ _id: new ObjectId(mongoId) });
+      console.log(`[Delete] Removed MongoDB record: ${mongoId}`);
+
+      return NextResponse.json({
+        success: true,
+        message: "Document deleted successfully",
+        deletedDoc: doc.filename,
+      });
+    }
+
+    // Mode 2: Delete all documents by name (original behavior)
+    console.log(`[Delete] Deleting all documents named: ${name}`);
+
+    // Delete from Weaviate
+    if (deleteWeaviate) {
+      const weaviateDeleted = await weaviateClient.deleteByFilter('sourceName', name);
+      console.log(`[Delete] Removed ${weaviateDeleted} chunks from Weaviate`);
+    }
+
+    // Delete ALL matching records from MongoDB
+    const mongoResult = await db.collection("file").deleteMany({ filename: name });
+    console.log(`[Delete] Removed ${mongoResult.deletedCount} MongoDB records`);
+
+    console.log(`[Delete] Completed deletion of source: ${name}`);
 
     return NextResponse.json({
       success: true,

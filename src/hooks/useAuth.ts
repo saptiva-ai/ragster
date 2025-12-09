@@ -1,16 +1,18 @@
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 export function useAuth(requireAuth = true) {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (requireAuth && status === "unauthenticated") {
-      router.push("/auth/signin");
+      // Preserve current path as callbackUrl so user returns here after login
+      const callbackUrl = encodeURIComponent(pathname || "/");
+      window.location.href = `/auth/signin?callbackUrl=${callbackUrl}`;
     }
-  }, [requireAuth, status, router]);
+  }, [requireAuth, status, pathname]);
 
   return { session, status };
 } 

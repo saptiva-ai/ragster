@@ -123,7 +123,7 @@ export default function WeaviateRecordsTable({
 
       {/* Modal para añadir registro */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100/90 backdrop-blur-sm p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative">
             <button
               onClick={() => setShowAddModal(false)}

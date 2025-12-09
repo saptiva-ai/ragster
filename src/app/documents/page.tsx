@@ -116,24 +116,32 @@ export default function DocumentsPage() {
   }, [refreshKey]);
 
   // Función para eliminar una fuente
-  const handleDeleteSource = async (id: string, name: string) => {
-    if (
-      !confirm(
-        `¿Estás seguro de que quieres eliminar "${name}"? Esta acción no se puede deshacer.`
-      )
-    ) {
+  const handleDeleteSource = async (id: string, name: string, status: number) => {
+    // Different confirmation message for stuck docs
+    const isStuck = status === 1;
+    const confirmMsg = isStuck
+      ? `¿Forzar eliminación de "${name}"? (documento atascado, solo se eliminará de la lista)`
+      : `¿Estás seguro de que quieres eliminar "${name}"? Esta acción no se puede deshacer.`;
+
+    if (!confirm(confirmMsg)) {
       return;
     }
 
     setActionInProgress(true);
 
     try {
+      // For stuck docs (status=1): delete by mongoId, skip Weaviate
+      // For completed docs (status=2): delete by name, include Weaviate
+      const payload = isStuck
+        ? { mongoId: id, deleteWeaviate: false }
+        : { name };
+
       const response = await fetch("/api/delete-weaviate", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -379,20 +387,22 @@ export default function DocumentsPage() {
                       {formatDate(source.uploadDate)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-center">
-                      <button
-                        onClick={() =>
-                          handleDeleteSource(source.id ?? "", source.filename)
-                        }
-                        disabled={source.status === 1}
-                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
-                        title="Eliminar fuente"
-                      >
-                        {source.status === 1 ? (
-                          <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <TrashIcon className="h-5 w-5" />
+                      <div className="flex items-center justify-center space-x-2">
+                        {/* Processing indicator */}
+                        {source.status === 1 && (
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" title="Procesando..."></div>
                         )}
-                      </button>
+                        {/* Delete button - always enabled */}
+                        <button
+                          onClick={() =>
+                            handleDeleteSource(source.id ?? "", source.filename, source.status)
+                          }
+                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                          title={source.status === 1 ? "Forzar eliminación (solo este)" : "Eliminar fuente"}
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

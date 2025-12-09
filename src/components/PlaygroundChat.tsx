@@ -3,6 +3,7 @@
 import {useState, useRef, useEffect} from "react";
 import {v4 as uuidv4} from "uuid";
 import {DEFAULT_MODEL_SETTINGS} from "@/config/models";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 type Source = {
   name: string;
@@ -81,19 +82,23 @@ export default function PlaygroundChat() {
           );
           const storedSettings = localStorage.getItem("modelSettings");
           if (storedSettings) {
-            setModelSettings(JSON.parse(storedSettings));
+            try {
+              setModelSettings(JSON.parse(storedSettings));
+            } catch {
+              console.error("Error al parsear configuración de localStorage");
+            }
           }
         }
       } catch (error) {
         console.error("Error al cargar configuraciones:", error);
         // Intentar fallback a localStorage
-        try {
-          const storedSettings = localStorage.getItem("modelSettings");
-          if (storedSettings) {
+        const storedSettings = localStorage.getItem("modelSettings");
+        if (storedSettings) {
+          try {
             setModelSettings(JSON.parse(storedSettings));
+          } catch {
+            console.error("Error al parsear configuración de localStorage");
           }
-        } catch (e) {
-          console.error("Error al cargar desde localStorage:", e);
         }
       }
     };
@@ -366,8 +371,12 @@ export default function PlaygroundChat() {
                       </span>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap mb-1">
-                      {message.content}
+                    <div className="mb-1">
+                      {message.role === "assistant" ? (
+                        <MarkdownRenderer content={message.content} />
+                      ) : (
+                        <div className="whitespace-pre-wrap">{message.content}</div>
+                      )}
                     </div>
                   )}
 
