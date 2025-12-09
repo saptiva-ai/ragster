@@ -118,8 +118,8 @@ function buildContext(results: Array<{ properties: Record<string, unknown> }>): 
 /**
  * Build SYSTEM message (instructions only - no context, no query)
  */
-function buildSystemMessage(systemPrompt: string): string {
-  return `${systemPrompt}
+function buildSystemMessage(systemPrompt: string, contactName?: string): string {
+  let message = `${systemPrompt}
 
 === INSTRUCCIONES ===
 1. Responde basándote SOLO en la información proporcionada por el usuario.
@@ -129,6 +129,13 @@ function buildSystemMessage(systemPrompt: string): string {
 5. Responde siempre en español, de forma clara y profesional.
 6. No incluyas etiquetas como <think> o </think>.
 7. Si el mensaje es breve ("sí", "ok", "cuéntame más"), responde a la última pregunta del historial.`;
+
+  if (contactName && contactName !== "Chat Interno") {
+    message += `
+8. Estás hablando con ${contactName}. Si te pregunta cómo se llama o su nombre, responde: "${contactName}".`;
+  }
+
+  return message;
 }
 
 /**
@@ -139,8 +146,7 @@ function buildUserMessage(
   usedChunks: number,
   history: string,
   previousQuestion: string,
-  query: string,
-  contactName?: string
+  query: string
 ): string {
   const contextHeader = usedChunks > 0
     ? `=== INFORMACIÓN RELEVANTE (${usedChunks} secciones) ===`
@@ -157,10 +163,6 @@ ${history}
 Última pregunta: "${previousQuestion}"
 
 `;
-  }
-
-  if (contactName && contactName !== "Chat Interno") {
-    message += `Contacto: ${contactName}\n`;
   }
 
   message += `=== MI PREGUNTA ===
@@ -248,14 +250,13 @@ export async function POST(req: NextRequest) {
     const { context, usedChunks, totalChunks } = buildContext(results);
 
     // 8. Build separate system and user messages
-    const systemMessage = buildSystemMessage(systemPrompt);
+    const systemMessage = buildSystemMessage(systemPrompt, contactName);
     const userMessage = buildUserMessage(
       context,
       usedChunks,
       history,
       previousQuestion,
-      query,
-      contactName
+      query
     );
 
     // 9. Generate LLM response
