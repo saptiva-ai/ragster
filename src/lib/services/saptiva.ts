@@ -14,24 +14,32 @@ export class SaptivaService {
 
   /**
    * Realiza una solicitud a la API de Saptiva para generar texto
+   *
+   * @param id - Message ID for storing in DB
+   * @param systemMessage - System role content (instructions only)
+   * @param userMessage - User role content (context + query)
+   * @param model - Model name
+   * @param temperature - Temperature for generation
+   * @param maxTokens - Max tokens for response
    */
   async generateText(
     id: string,
-    prompt: string,
-    query: string,
+    systemMessage: string,
+    userMessage: string,
     model: string = DEFAULT_MODELS.CHAT,
     temperature: number = 0.7,
-    maxTokens: number = 1000,
-    history: { role: string; content: string }[] = []
+    maxTokens: number = 1000
   ): Promise<string> {
     try {
       const { db } = await connectToDatabase();
       const collection = db.collection("messages");
 
+      // Correct format per Saptiva API docs:
+      // - system: instructions only
+      // - user: context + query (no duplication)
       const messages = [
-        { role: "system", content: prompt },
-        ...history,
-        { role: "user", content: query },
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
       ];
 
       const payload = {

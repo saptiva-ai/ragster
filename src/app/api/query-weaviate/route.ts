@@ -24,6 +24,26 @@ const AMBIGUOUS_WORDS = [
 ];
 
 /**
+ * Context Window Management
+ *
+ * Saptiva API limit: 8192 tokens (server-side enforced)
+ * Token estimation: ~1 token per 4 characters (conservative)
+ *
+ * Budget allocation for 8K limit:
+ * - System prompt + instructions: ~1500 tokens
+ * - Conversation history: ~500 tokens
+ * - User query: ~100 tokens
+ * - LLM response: ~1500 tokens
+ * - Safety margin: ~600 tokens
+ * - Available for context: ~4000 tokens (~16K chars)
+ *
+ * Being conservative to account for large system prompts
+ */
+const MAX_CONTEXT_TOKENS = 3000;
+const CHARS_PER_TOKEN = 4;
+const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN; // ~12,000 chars
+
+/**
  * Search in Weaviate using vector similarity
  */
 async function searchInWeaviate(queryText: string) {
@@ -42,54 +62,111 @@ async function searchInWeaviate(queryText: string) {
 }
 
 /**
- * Build context from search results
+ * Build context from search results with DYNAMIC chunk selection.
+ * Adds chunks one by one until we hit the context limit.
+ * This prevents "context window exceeded" errors while maximizing info.
+ *
+ * @returns Object with context string and stats about chunks used
  */
-function buildContext(results: Array<{ properties: Record<string, unknown> }>): string {
-  if (results.length === 0) return "";
+function buildContext(results: Array<{ properties: Record<string, unknown> }>): {
+  context: string;
+  usedChunks: number;
+  totalChunks: number;
+  totalChars: number;
+} {
+  if (results.length === 0) {
+    return { context: "", usedChunks: 0, totalChunks: 0, totalChars: 0 };
+  }
 
-  return results
-    .map((chunk, index) => {
-      const text = typeof chunk.properties.text === "string" ? chunk.properties.text : "";
-      return `[Sección ${index + 1}]:\n${text}`;
-    })
-    .join("\n\n---\n\n");
+  let contextText = "";
+  let currentChars = 0;
+  let usedChunks = 0;
+
+  for (let i = 0; i < results.length; i++) {
+    const chunk = results[i];
+    const text = typeof chunk.properties.text === "string" ? chunk.properties.text : "";
+    const sourceName = typeof chunk.properties.sourceName === "string" ? chunk.properties.sourceName : "Documento";
+
+    // Format the section
+    const sectionContent = `[Sección ${i + 1}] (${sourceName}):\n${text}`;
+    const sectionWithSeparator = sectionContent + "\n\n---\n\n";
+
+    // Check if adding this chunk would overflow our budget
+    if (currentChars + sectionWithSeparator.length > MAX_CONTEXT_CHARS) {
+      console.log(`[Context] Limit reached at chunk ${i + 1}/${results.length} (${currentChars} chars used, limit: ${MAX_CONTEXT_CHARS})`);
+      break;
+    }
+
+    // Safe to add this chunk
+    contextText += sectionWithSeparator;
+    currentChars += sectionWithSeparator.length;
+    usedChunks++;
+  }
+
+  // Log context usage stats
+  const utilizationPercent = Math.round((currentChars / MAX_CONTEXT_CHARS) * 100);
+  console.log(`[Context] Using ${usedChunks}/${results.length} chunks (${currentChars} chars, ${utilizationPercent}% of limit)`);
+
+  return {
+    context: contextText.trim(),
+    usedChunks,
+    totalChunks: results.length,
+    totalChars: currentChars,
+  };
 }
 
 /**
- * Build prompt for LLM
+ * Build SYSTEM message (instructions only - no context, no query)
  */
-function buildPrompt(
-  systemPrompt: string,
+function buildSystemMessage(systemPrompt: string): string {
+  return `${systemPrompt}
+
+=== INSTRUCCIONES ===
+1. Responde basándote SOLO en la información proporcionada por el usuario.
+2. Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en la información.
+3. USA TODA la información proporcionada. Combina de múltiples secciones si es necesario.
+4. NUNCA inventes datos. Si no está en la información, di "no encuentro esa información específica".
+5. Responde siempre en español, de forma clara y profesional.
+6. No incluyas etiquetas como <think> o </think>.
+7. Si el mensaje es breve ("sí", "ok", "cuéntame más"), responde a la última pregunta del historial.`;
+}
+
+/**
+ * Build USER message (context + history + query)
+ */
+function buildUserMessage(
   context: string,
+  usedChunks: number,
   history: string,
   previousQuestion: string,
   query: string,
   contactName?: string
 ): string {
-  return `
-Contexto General:
-${systemPrompt}
+  const contextHeader = usedChunks > 0
+    ? `=== INFORMACIÓN RELEVANTE (${usedChunks} secciones) ===`
+    : `=== NO SE ENCONTRÓ INFORMACIÓN RELEVANTE ===`;
 
-=== INFORMACIÓN RELEVANTE DE LOS DOCUMENTOS ===
-${context}
+  let message = `${contextHeader}
+${context || "No hay información disponible."}
 
-=== INSTRUCCIONES CRÍTICAS ===
+`;
 
-1. PRIORIDAD ABSOLUTA: Si la pregunta busca NÚMEROS, FECHAS, PORCENTAJES o ESTADÍSTICAS, búscalos en TODA la información anterior.
-2. RESPALDO: Cuando uses datos específicos, basa tu respuesta en los documentos.
-3. USA TODA la información: No te limites a la primera parte. Combina información de múltiples secciones si es necesario.
-4. NO digas "no hay información" o "no se puede determinar" sin haber revisado TODO el contenido primero.
-5. Para preguntas de "por qué" o "cómo", sintetiza información de varias partes del documento.
-6. Lenguaje claro y profesional.
-7. NUNCA inventes datos. Si realmente no está en los documentos, di claramente "no encuentro esa información específica en los documentos".
-8. Responde siempre en español.
-9. No incluyas etiquetas como <think> o </think>.
-10. Si el mensaje es breve ("sí", "ok", "cuéntame más"), asume que responde afirmativamente a la última pregunta.
+  if (history) {
+    message += `=== HISTORIAL ===
+${history}
+Última pregunta: "${previousQuestion}"
 
-Historial de conversación: "${history}"
-Última pregunta enviada: "${previousQuestion}"
-${contactName && contactName !== "Chat Interno" ? `Nombre del contacto: "${contactName}"\n` : ""}
-Mensaje actual del usuario: "${query}"`;
+`;
+  }
+
+  if (contactName && contactName !== "Chat Interno") {
+    message += `Contacto: ${contactName}\n`;
+  }
+
+  message += `=== MI PREGUNTA ===
+${query}`;
+
+  return message;
 }
 
 /**
@@ -167,23 +244,26 @@ export async function POST(req: NextRequest) {
       ? []
       : await searchInWeaviate(searchQuery);
 
-    // 7. Build context and prompt
-    const context = buildContext(results);
-    const prompt = buildPrompt(
-      systemPrompt,
+    // 7. Build context with dynamic chunk selection (prevents token overflow)
+    const { context, usedChunks, totalChunks } = buildContext(results);
+
+    // 8. Build separate system and user messages
+    const systemMessage = buildSystemMessage(systemPrompt);
+    const userMessage = buildUserMessage(
       context,
+      usedChunks,
       history,
       previousQuestion,
       query,
       contactName
     );
 
-    // 8. Generate LLM response
+    // 9. Generate LLM response
     const modelService = ModelFactory.getModelService();
     const answer = await modelService.generateText(
       message_id,
-      prompt,
-      query,
+      systemMessage,
+      userMessage,
       modelId,
       temperature || 0.3
     );
@@ -195,6 +275,8 @@ export async function POST(req: NextRequest) {
       answer,
       modelId,
       provider: "saptiva",
+      chunksUsed: usedChunks,
+      chunksTotal: totalChunks,
     });
 
   } catch (error) {
