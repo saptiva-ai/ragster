@@ -79,30 +79,37 @@ export class DocumentProcessor {
     options: ProcessOptions = {}
   ): Promise<ProcessResult> {
     const startTime = Date.now();
+    const fileSize = (file.size / 1024).toFixed(1);
+
+    console.log(`[Processor] 📄 Starting: ${file.name} (${fileSize}KB)`);
 
     // 1. Get appropriate reader for this file type
     const reader = readerFactory.getReader(file);
-    console.log(`[DocumentProcessor] Using reader: ${reader.getName()}`);
+    console.log(`[Processor] Step 1/4: Using reader ${reader.getName()}`);
 
     // 2. Extract text content from file
+    const extractStart = Date.now();
     const extracted = await reader.extract(file);
-    console.log(`[DocumentProcessor] Extracted ${extracted.content.length} characters`);
+    const extractTime = ((Date.now() - extractStart) / 1000).toFixed(1);
+    console.log(`[Processor] Step 2/4: Extracted ${extracted.content.length} chars ✓ (${extractTime}s)`);
 
     // 3. Detect language
     const languageDetector = getLanguageDetector();
     const langResult = await languageDetector.detect(extracted.content);
-    console.log(`[DocumentProcessor] Detected language: ${langResult.language} (confidence: ${langResult.confidence.toFixed(2)})`);
+    console.log(`[Processor] Language: ${langResult.language} (${(langResult.confidence * 100).toFixed(0)}% confidence)`);
 
     // 4. Get chunker and chunk the text
+    const chunkStart = Date.now();
     const chunker = this.getChunkerForType(options);
     const chunks = await chunker.chunk(extracted.content, {
       chunkSize: options.chunkSize,
       chunkOverlap: options.chunkOverlap,
     });
-    console.log(`[DocumentProcessor] Created ${chunks.length} chunks using ${chunker.getName()}`);
+    const chunkTime = ((Date.now() - chunkStart) / 1000).toFixed(1);
+    console.log(`[Processor] Step 3/4: Created ${chunks.length} chunks ✓ (${chunkTime}s)`);
 
     // 5. Generate embeddings for each chunk
-    console.log(`[DocumentProcessor] Generating embeddings using ${this.embedder.getName()}...`);
+    console.log(`[Processor] Step 4/4: Generating ${chunks.length} embeddings...`);
     const embeddingResults = await this.embedder.embedBatch(
       chunks.map((c) => c.content)
     );
@@ -125,7 +132,8 @@ export class DocumentProcessor {
     };
 
     const processingTimeMs = Date.now() - startTime;
-    console.log(`[DocumentProcessor] Completed in ${processingTimeMs}ms`);
+    const totalSeconds = (processingTimeMs / 1000).toFixed(1);
+    console.log(`[Processor] ✅ Complete: ${file.name} - ${chunks.length} chunks in ${totalSeconds}s`);
 
     return {
       chunks: chunksWithEmbeddings,

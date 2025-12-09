@@ -62,7 +62,16 @@ export async function sendMessageToWABA(params: any): Promise<any> {
     console.log("Respuesta de WABA:", response);
 
     if (typeof response === "string") {
-      response = JSON.parse(response);
+      try {
+        response = JSON.parse(response);
+      } catch {
+        console.error("Error al parsear respuesta de WABA:", response);
+        return {
+          error: true,
+          code: 500,
+          message: "Respuesta inválida del servidor de WhatsApp",
+        };
+      }
     }
 
     return {

@@ -64,7 +64,7 @@ export const authOptions: NextAuthOptions = {
   ],
   adapter: MongoDBAdapter(clientPromise),
   pages: {
-    signIn: "/auth/signup", // Página personalizada para inicio de sesión
+    signIn: "/auth/signin", // Página personalizada para inicio de sesión
   },
   session: {
     strategy: "jwt", // Se utiliza JWT para manejar sesiones

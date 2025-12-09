@@ -55,6 +55,9 @@ RUN mkdir .next && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Copy mupdf for PDF processing (external package not bundled by Next.js)
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/mupdf ./node_modules/mupdf
+
 USER nextjs
 
 EXPOSE 3000

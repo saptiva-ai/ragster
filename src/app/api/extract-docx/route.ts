@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
+import mammoth from "mammoth";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const AdmZip = require("adm-zip");
 
 /**
  * Endpoint API para extraer texto de archivos DOCX
@@ -51,101 +54,66 @@ export async function POST(request: NextRequest) {
  * Función del lado del servidor para extraer texto de archivos DOCX
  */
 async function extractTextFromDocx(file: File): Promise<string> {
+  // Convertir el archivo a buffer
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  // Crear un archivo temporal
+  const tempDir = os.tmpdir();
+  const tempFilePath = path.join(tempDir, `docx-${Date.now()}.docx`);
+
+  // Escribir el buffer en el archivo temporal
+  fs.writeFileSync(tempFilePath, buffer);
+
   try {
-    // Convertir el archivo a buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Crear un archivo temporal
-    const tempDir = os.tmpdir();
-    const tempFilePath = path.join(tempDir, `docx-${Date.now()}.docx`);
-
-    // Escribir el buffer en el archivo temporal
-    fs.writeFileSync(tempFilePath, buffer);
-
-    // Procesar DOCX con librerías externas
-    // Tenemos tres enfoques posibles:
-
-    // Opción 1: Usar mammoth.js si está disponible
+    // Opción 1: Usar mammoth.js (mejor opción - puro JS, sin shell)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mammoth = require("mammoth");
       const result = await mammoth.extractRawText({ path: tempFilePath });
-
-      // Eliminar archivo temporal
-      fs.unlinkSync(tempFilePath);
-
       return result.value;
     } catch (mammothError) {
       console.error("Error usando mammoth.js:", mammothError);
-
-      // Opción 2: Usar la librería docx-parser
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { DocxParser } = require("docx-parser");
-        const parser = new DocxParser();
-        const text = parser.parseDocx(tempFilePath);
-
-        // Eliminar archivo temporal
-        fs.unlinkSync(tempFilePath);
-
-        return text;
-      } catch (docxParserError) {
-        console.error("Error usando docx-parser:", docxParserError);
-
-        // Opción 3: Usar extracción simple desde XML
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const AdmZip = require("adm-zip");
-          const zip = new AdmZip(tempFilePath);
-          const contentXml = zip.getEntry("word/document.xml");
-
-          if (!contentXml) {
-            throw new Error("No se encontró document.xml en el archivo DOCX");
-          }
-
-          const content = contentXml.getData().toString("utf8");
-
-          // Extraer texto usando regex desde el XML
-          // No es lo ideal, pero funciona como último recurso
-          const textContent = content
-            .replace(/<[^>]+>/g, " ") // Quitar etiquetas XML
-            .replace(/\s+/g, " ") // Normalizar espacios
-            .trim();
-
-          // Eliminar archivo temporal
-          fs.unlinkSync(tempFilePath);
-
-          return textContent;
-        } catch (zipError) {
-          console.error("Error usando adm-zip:", zipError);
-
-          // Último recurso: Usar pandoc si está instalado en el servidor
-          try {
-            const text = execSync(`pandoc -f docx -t plain ${tempFilePath}`, {
-              encoding: "utf8",
-              maxBuffer: 10 * 1024 * 1024, // 10MB de buffer para archivos grandes
-            });
-
-            // Eliminar archivo temporal
-            fs.unlinkSync(tempFilePath);
-
-            return text;
-          } catch (pandocError) {
-            console.error("Error usando pandoc:", pandocError);
-
-            // Eliminar archivo temporal antes de fallar
-            fs.unlinkSync(tempFilePath);
-
-            throw new Error("Todos los métodos de análisis DOCX fallaron");
-          }
-        }
-      }
     }
-  } catch (error) {
-    console.error("Error en extractTextFromDocx:", error);
-    return `Error al extraer texto del documento: ${
-      error instanceof Error ? error.message : "Error desconocido"
-    }`;
+
+    // Opción 2: Usar extracción desde XML con AdmZip
+    try {
+      const zip = new AdmZip(tempFilePath);
+      const contentXml = zip.getEntry("word/document.xml");
+
+      if (!contentXml) {
+        throw new Error("No se encontró document.xml en el archivo DOCX");
+      }
+
+      const content = contentXml.getData().toString("utf8");
+
+      // Extraer texto usando regex desde el XML
+      const textContent = content
+        .replace(/<[^>]+>/g, " ") // Quitar etiquetas XML
+        .replace(/\s+/g, " ") // Normalizar espacios
+        .trim();
+
+      return textContent;
+    } catch (zipError) {
+      console.error("Error usando adm-zip:", zipError);
+    }
+
+    // Opción 3: Usar pandoc si está instalado (con execFileSync para evitar inyección de comandos)
+    try {
+      const text = execFileSync("pandoc", ["-f", "docx", "-t", "plain", tempFilePath], {
+        encoding: "utf8",
+        maxBuffer: 10 * 1024 * 1024, // 10MB de buffer para archivos grandes
+      });
+      return text;
+    } catch (pandocError) {
+      console.error("Error usando pandoc:", pandocError);
+    }
+
+    throw new Error("Todos los métodos de análisis DOCX fallaron");
+  } finally {
+    // Siempre eliminar archivo temporal, incluso si hay errores
+    try {
+      fs.unlinkSync(tempFilePath);
+    } catch {
+      console.error("Error al eliminar archivo temporal:", tempFilePath);
+    }
   }
 }

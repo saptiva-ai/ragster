@@ -36,17 +36,42 @@ export class SaptivaEmbedder implements Embedder {
   }
 
   async embedBatch(texts: string[], options?: EmbeddingOptions): Promise<EmbeddingResult[]> {
-    // Process sequentially with delay to avoid rate limiting
+    const total = texts.length;
+    const startTime = Date.now();
     const results: EmbeddingResult[] = [];
+    const BATCH_SIZE = 10; // Process 10 texts in parallel
+    const DELAY_BETWEEN_BATCHES = 100; // 100ms delay between batches
 
-    for (let i = 0; i < texts.length; i++) {
-      if (i > 0) {
-        // 500ms delay between requests to avoid overwhelming the API
-        await new Promise((resolve) => setTimeout(resolve, 500));
+    console.log(`[Embedder] Starting batch: ${total} texts (parallel batches of ${BATCH_SIZE})`);
+
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+
+      // Process batch in parallel
+      const batchPromises = batch.map(text => this.embed(text, options));
+
+      try {
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        // Log progress
+        const completed = Math.min(i + BATCH_SIZE, total);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        const percent = Math.round((completed / total) * 100);
+        console.log(`[Embedder] Progress: ${completed}/${total} (${percent}%) - ${elapsed}s elapsed`);
+
+        // Small delay between batches to avoid overwhelming the API
+        if (i + BATCH_SIZE < texts.length) {
+          await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+        }
+      } catch (error) {
+        console.error(`[Embedder] ❌ Failed at batch starting ${i + 1}:`, error instanceof Error ? error.message : error);
+        throw error;
       }
-      const result = await this.embed(texts[i], options);
-      results.push(result);
     }
+
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[Embedder] ✅ Complete: ${total} embeddings in ${totalTime}s`);
 
     return results;
   }

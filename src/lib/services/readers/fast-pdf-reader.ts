@@ -2,7 +2,7 @@ import { DocumentReader } from '@/lib/core/interfaces';
 import { ExtractedDocument } from '@/lib/core/types';
 
 /**
- * Fast PDF reader using direct text extraction.
+ * Fast PDF reader using mupdf for direct text extraction.
  * Best for regular PDFs with selectable text.
  * For scanned/image PDFs, use OcrPdfReader instead.
  */
@@ -16,13 +16,25 @@ export class FastPdfReader implements DocumentReader {
   }
 
   async extract(file: File): Promise<ExtractedDocument> {
-    const pdfParse = (await import('pdf-parse')).default;
+    // Dynamic import for ESM package
+    const mupdf = await import('mupdf');
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const result = await pdfParse(buffer);
+    // Open PDF with mupdf
+    const doc = mupdf.Document.openDocument(buffer, 'application/pdf');
+    const pageCount = doc.countPages();
+
+    // Extract text from all pages
+    const textParts: string[] = [];
+    for (let i = 0; i < pageCount; i++) {
+      const page = doc.loadPage(i);
+      const text = page.toStructuredText('preserve-whitespace').asText();
+      textParts.push(text);
+    }
 
     return {
-      content: result.text,
+      content: textParts.join('\n\n'),
       metadata: {
         filename: file.name,
         fileType: file.type,
@@ -30,7 +42,7 @@ export class FastPdfReader implements DocumentReader {
         uploadDate: new Date().toISOString(),
         userId: '',
         namespace: '',
-        pageCount: result.numpages,
+        pageCount: pageCount,
       },
     };
   }

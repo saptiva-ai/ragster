@@ -215,23 +215,52 @@ async function deleteObject(id: string): Promise<void> {
 
 /**
  * Delete multiple objects by filter from the shared collection.
+ * Returns the number of objects deleted.
  */
 async function deleteByFilter(
   filterPath: string,
   filterValue: string
-): Promise<void> {
+): Promise<number> {
   const client = getClient();
   const className = COLLECTION_NAME;
 
-  await client.batch
-    .objectsBatchDeleter()
-    .withClassName(className)
-    .withWhere({
-      path: [filterPath],
-      operator: 'Equal',
-      valueText: filterValue,
-    })
-    .do();
+  try {
+    const result = await client.batch
+      .objectsBatchDeleter()
+      .withClassName(className)
+      .withWhere({
+        path: [filterPath],
+        operator: 'Equal',
+        valueText: filterValue,
+      })
+      .do();
+
+    const deletedCount = result?.results?.successful ?? 0;
+    console.log(`[Weaviate] Deleted ${deletedCount} objects where ${filterPath}="${filterValue}"`);
+
+    // Verify deletion by checking if any objects still exist with this filter
+    const remaining = await client.graphql
+      .get()
+      .withClassName(className)
+      .withFields('_additional { id }')
+      .withWhere({
+        path: [filterPath],
+        operator: 'Equal',
+        valueText: filterValue,
+      })
+      .withLimit(1)
+      .do();
+
+    const remainingCount = remaining?.data?.Get?.[className]?.length ?? 0;
+    if (remainingCount > 0) {
+      console.warn(`[Weaviate] WARNING: ${remainingCount} objects still exist after deletion!`);
+    }
+
+    return deletedCount;
+  } catch (error) {
+    console.error(`[Weaviate] Error deleting by filter:`, error);
+    throw error;
+  }
 }
 
 /**
