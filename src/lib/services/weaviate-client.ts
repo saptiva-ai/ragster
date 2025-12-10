@@ -1,11 +1,11 @@
-import weaviate, { WeaviateClient } from 'weaviate-ts-client';
-import { configService } from './config';
+import weaviate, { WeaviateClient } from "weaviate-ts-client";
+import { configService } from "./config";
 
 /**
  * Shared collection name for all documents.
  * All users share a single document pool.
  */
-const COLLECTION_NAME = 'Documents';
+const COLLECTION_NAME = "Documents";
 
 /**
  * Global reference for Weaviate client to survive Next.js hot reloads.
@@ -33,20 +33,22 @@ function getClient(): WeaviateClient {
   if (config.isCloud) {
     // ===== CLOUD MODE =====
     // Weaviate Cloud Services (WCS)
-    console.log(`[Weaviate] ☁️  Connecting to Cloud: ${config.clusterUrl}`);
+    console.log(`[Weaviate] ☁️  Connecting to Cloud: ${config.host}`);
 
     client = weaviate.client({
-      scheme: 'https',
-      host: config.clusterUrl,
+      scheme: "https",
+      host: config.host,
       headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
       },
     });
   } else {
     // ===== LOCAL MODE =====
     // Docker or local Weaviate instance
     const hostUrl = config.port ? `${config.host}:${config.port}` : config.host;
-    console.log(`[Weaviate] 🏠 Connecting to Local: ${config.scheme}://${hostUrl}`);
+    console.log(
+      `[Weaviate] 🏠 Connecting to Local: ${config.scheme}://${hostUrl}`
+    );
 
     client = weaviate.client({
       scheme: config.scheme,
@@ -55,7 +57,7 @@ function getClient(): WeaviateClient {
   }
 
   // Only store in global in development to survive hot reloads
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== "production") {
     globalForWeaviate.weaviateClient = client;
   }
 
@@ -88,17 +90,17 @@ async function verifyConnection(): Promise<boolean> {
     if (config.isCloud) {
       console.error(
         `   Possible causes:\n` +
-        `   - WCS cluster might be sleeping (sandbox tier)\n` +
-        `   - Invalid WEAVIATE_CLUSTER_URL: ${config.clusterUrl}\n` +
-        `   - Invalid WEAVIATE_API_KEY\n` +
-        `   - Network connectivity issues`
+          `   - WCS cluster might be sleeping (sandbox tier)\n` +
+          `   - Invalid WEAVIATE_HOST: ${config.host}\n` +
+          `   - Invalid WEAVIATE_API_KEY\n` +
+          `   - Network connectivity issues`
       );
     } else {
       console.error(
         `   Possible causes:\n` +
-        `   - Weaviate container not running (try: docker-compose up -d)\n` +
-        `   - Wrong WEAVIATE_HOST: ${config.host}:${config.port}\n` +
-        `   - Weaviate still starting up`
+          `   - Weaviate container not running (try: docker-compose up -d)\n` +
+          `   - Wrong WEAVIATE_HOST: ${config.host}:${config.port}\n` +
+          `   - Weaviate still starting up`
       );
     }
 
@@ -133,23 +135,23 @@ async function ensureCollectionExists(): Promise<string> {
       .withClass({
         class: className,
         properties: [
-          { name: 'text', dataType: ['text'] },
-          { name: 'sourceName', dataType: ['text'] },
-          { name: 'sourceType', dataType: ['text'] },
-          { name: 'sourceSize', dataType: ['text'] },
-          { name: 'uploadDate', dataType: ['text'] },
-          { name: 'chunkIndex', dataType: ['int'] },
-          { name: 'totalChunks', dataType: ['int'] },
-          { name: 'sourceNamespace', dataType: ['text'] },
-          { name: 'prevChunkIndex', dataType: ['int'] },
-          { name: 'nextChunkIndex', dataType: ['int'] },
-          { name: 'userId', dataType: ['text'] },
+          { name: "text", dataType: ["text"] },
+          { name: "sourceName", dataType: ["text"] },
+          { name: "sourceType", dataType: ["text"] },
+          { name: "sourceSize", dataType: ["text"] },
+          { name: "uploadDate", dataType: ["text"] },
+          { name: "chunkIndex", dataType: ["int"] },
+          { name: "totalChunks", dataType: ["int"] },
+          { name: "sourceNamespace", dataType: ["text"] },
+          { name: "prevChunkIndex", dataType: ["int"] },
+          { name: "nextChunkIndex", dataType: ["int"] },
+          { name: "userId", dataType: ["text"] },
           // Fields for sentence chunker
-          { name: 'language', dataType: ['text'] },
-          { name: 'startPosition', dataType: ['int'] },
-          { name: 'endPosition', dataType: ['int'] },
-          { name: 'contentWithoutOverlap', dataType: ['text'] },
-          { name: 'chunkerUsed', dataType: ['text'] },
+          { name: "language", dataType: ["text"] },
+          { name: "startPosition", dataType: ["int"] },
+          { name: "endPosition", dataType: ["int"] },
+          { name: "contentWithoutOverlap", dataType: ["text"] },
+          { name: "chunkerUsed", dataType: ["text"] },
         ],
       })
       .do();
@@ -207,7 +209,7 @@ async function insertBatch(
 async function searchByVector(
   vector: number[],
   limit: number = 10,
-  fields: string = 'text sourceName chunkIndex totalChunks'
+  fields: string = "text sourceName chunkIndex totalChunks"
 ): Promise<Array<{ properties: Record<string, unknown> }>> {
   const client = getClient();
   const className = COLLECTION_NAME;
@@ -275,11 +277,7 @@ async function deleteObject(id: string): Promise<void> {
   const client = getClient();
   const className = COLLECTION_NAME;
 
-  await client.data
-    .deleter()
-    .withClassName(className)
-    .withId(id)
-    .do();
+  await client.data.deleter().withClassName(className).withId(id).do();
 }
 
 /**
@@ -299,22 +297,24 @@ async function deleteByFilter(
       .withClassName(className)
       .withWhere({
         path: [filterPath],
-        operator: 'Equal',
+        operator: "Equal",
         valueText: filterValue,
       })
       .do();
 
     const deletedCount = result?.results?.successful ?? 0;
-    console.log(`[Weaviate] Deleted ${deletedCount} objects where ${filterPath}="${filterValue}"`);
+    console.log(
+      `[Weaviate] Deleted ${deletedCount} objects where ${filterPath}="${filterValue}"`
+    );
 
     // Verify deletion by checking if any objects still exist with this filter
     const remaining = await client.graphql
       .get()
       .withClassName(className)
-      .withFields('_additional { id }')
+      .withFields("_additional { id }")
       .withWhere({
         path: [filterPath],
-        operator: 'Equal',
+        operator: "Equal",
         valueText: filterValue,
       })
       .withLimit(1)
@@ -322,7 +322,9 @@ async function deleteByFilter(
 
     const remainingCount = remaining?.data?.Get?.[className]?.length ?? 0;
     if (remainingCount > 0) {
-      console.warn(`[Weaviate] WARNING: ${remainingCount} objects still exist after deletion!`);
+      console.warn(
+        `[Weaviate] WARNING: ${remainingCount} objects still exist after deletion!`
+      );
     }
 
     return deletedCount;
