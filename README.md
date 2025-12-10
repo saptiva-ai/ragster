@@ -56,7 +56,7 @@ NEXTAUTH_SECRET=genera-un-secreto-aleatorio
 
 # WEAVIATE (vacío = local Docker, con valor = cloud)
 # WEAVIATE_CLOUD=true
-# WEAVIATE_CLUSTER_URL=https://tu-cluster.weaviate.cloud
+# WEAVIATE_HOST=tu-cluster.weaviate.cloud
 # WEAVIATE_API_KEY=tu-api-key
 ```
 
@@ -86,7 +86,7 @@ El sistema detecta automáticamente si usar servicios locales o cloud basándose
 **MongoDB local + Weaviate cloud:**
 ```env
 WEAVIATE_CLOUD=true
-WEAVIATE_CLUSTER_URL=https://tu-cluster.weaviate.cloud
+WEAVIATE_HOST=tu-cluster.weaviate.cloud
 WEAVIATE_API_KEY=tu-api-key
 ```
 
@@ -94,7 +94,7 @@ WEAVIATE_API_KEY=tu-api-key
 ```env
 MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/ragster
 WEAVIATE_CLOUD=true
-WEAVIATE_CLUSTER_URL=https://tu-cluster.weaviate.cloud
+WEAVIATE_HOST=tu-cluster.weaviate.cloud
 WEAVIATE_API_KEY=tu-api-key
 ```
 
