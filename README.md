@@ -131,6 +131,7 @@ NEXT_PUBLIC_CHAT_API=https://api.saptiva.com/v1/chat/completions
 
 # AUTH (requerido) - genera con: openssl rand -base64 32
 NEXTAUTH_SECRET=un-secreto-largo-y-seguro-para-produccion
+NEXTAUTH_URL=https://tu-dominio.com
 
 # MONGODB - Cloud Atlas
 MONGODB_URI=mongodb+srv://usuario:password@cluster.mongodb.net/ragster
