@@ -33,7 +33,9 @@ git clone https://github.com/saptiva-ai/ragster-weaviate.git
 cd ragster-weaviate
 cp .env.example .env
 # Edita .env con tu API key de Saptiva
-docker-compose up -d
+docker-compose --profile local up -d    # Local (todo en Docker)
+# o
+docker-compose up -d                    # Cloud (solo app, DBs en la nube)
 ```
 
 Abre `http://localhost:3001`
@@ -69,7 +71,9 @@ MONGODB_URI=mongodb://mongo:27017/ragster
 ### 3. Ejecuta
 
 ```bash
-docker-compose up -d
+docker-compose --profile local up -d    # Local (App + Mongo + Weaviate)
+# o
+docker-compose up -d                    # Cloud (Solo App, DBs en la nube)
 ```
 
 ## Quiero correr LOCAL (desarrollo)
@@ -95,7 +99,7 @@ MONGODB_URI=mongodb://mongo:27017/ragster
 
 **Ejecutar:**
 ```bash
-docker-compose up -d
+docker-compose --profile local up -d
 ```
 
 Listo. Abre `http://localhost:3001`
@@ -174,21 +178,59 @@ El código buscará en `localhost` automáticamente:
 - MongoDB: `localhost:27017`
 - Weaviate: `localhost:8080`
 
-## Comandos Docker
+## Comandos
 
-| Comando | Descripción |
-|---------|-------------|
-| `docker-compose up -d` | Iniciar servicios |
-| `docker-compose down` | Detener servicios |
-| `docker-compose logs -f ragster` | Ver logs |
-| `docker-compose down -v` | Detener y borrar datos |
-| `docker-compose up -d --build` | Reconstruir después de cambios en código |
+| Escenario | Comando |
+|-----------|---------|
+| **Local** (App + Mongo + Weaviate) | `docker-compose --profile local up -d` |
+| **Cloud** (Solo App) | `docker-compose up -d` |
+| Detener | `docker-compose --profile local down` |
+| Ver logs | `docker-compose logs -f` |
+| Borrar datos | `docker-compose --profile local down -v` |
+| Reconstruir | `docker-compose --profile local up -d --build` |
 
 **Importante:** Después de cambiar `.env`, reinicia con:
 ```bash
-docker-compose down
-docker-compose up -d
+docker-compose --profile local down
+docker-compose --profile local up -d   # o sin --profile para cloud
 ```
+
+---
+
+## Atajos con Make (Linux/Mac/Windows)
+
+Si tienes `make` instalado, puedes usar estos comandos simplificados:
+
+| Comando | Equivalente |
+|---------|-------------|
+| `make local` | Iniciar TODO (App + Mongo + Weaviate) |
+| `make cloud` | Iniciar solo App (DBs en la nube) |
+| `make down` | Detener todo |
+| `make logs` | Ver logs |
+| `make clean` | Detener y borrar datos |
+| `make build` | Reconstruir contenedores |
+
+<details>
+<summary><strong>Instalar Make en Windows</strong></summary>
+
+> Ejecuta PowerShell como **Administrador**
+
+**Opción 1: Chocolatey (recomendado)**
+1. Instala Chocolatey siguiendo la [guía oficial](https://chocolatey.org/install)
+2. Luego ejecuta:
+```powershell
+choco install make
+```
+
+**Opción 2: winget** (ya viene en Windows 10/11)
+```powershell
+winget install GnuWin32.Make
+```
+
+**Opción 3: Git Bash**
+Si tienes Git instalado, usa Git Bash - ya incluye make.
+
+</details>
 
 ## Estructura del Proyecto
 
