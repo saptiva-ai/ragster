@@ -1,4 +1,5 @@
 import weaviate, { WeaviateClient } from 'weaviate-ts-client';
+import { configService } from './config';
 
 /**
  * Shared collection name for all documents.
@@ -11,23 +12,47 @@ const COLLECTION_NAME = 'Documents';
  * In development, Next.js clears the module cache on hot reloads,
  * but native connections may stay open causing "Too many connections" errors.
  */
-const globalForWeaviate = global as unknown as { weaviateClient: WeaviateClient };
+const globalForWeaviate = global as unknown as {
+  weaviateClient: WeaviateClient;
+  connectionVerified: boolean;
+};
 
 /**
  * Get or create the Weaviate client instance.
  * Uses global storage in development to survive hot reloads.
+ * Supports both local (Docker) and cloud (WCS) modes.
  */
 function getClient(): WeaviateClient {
   if (globalForWeaviate.weaviateClient) {
     return globalForWeaviate.weaviateClient;
   }
 
-  const client = weaviate.client({
-    scheme: process.env.WEAVIATE_SCHEME || 'http',
-    host: process.env.WEAVIATE_HOST || 'localhost:8080',
-  });
+  const config = configService.getWeaviateConfig();
+  let client: WeaviateClient;
 
-  console.log(`[Weaviate] Connected to ${process.env.WEAVIATE_HOST || 'localhost:8080'}`);
+  if (config.isCloud) {
+    // ===== CLOUD MODE =====
+    // Weaviate Cloud Services (WCS)
+    console.log(`[Weaviate] ☁️  Connecting to Cloud: ${config.clusterUrl}`);
+
+    client = weaviate.client({
+      scheme: 'https',
+      host: config.clusterUrl,
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+    });
+  } else {
+    // ===== LOCAL MODE =====
+    // Docker or local Weaviate instance
+    const hostUrl = config.port ? `${config.host}:${config.port}` : config.host;
+    console.log(`[Weaviate] 🏠 Connecting to Local: ${config.scheme}://${hostUrl}`);
+
+    client = weaviate.client({
+      scheme: config.scheme,
+      host: hostUrl,
+    });
+  }
 
   // Only store in global in development to survive hot reloads
   if (process.env.NODE_ENV !== 'production') {
@@ -35,6 +60,50 @@ function getClient(): WeaviateClient {
   }
 
   return client;
+}
+
+/**
+ * Verify connection to Weaviate (async health check).
+ * Call this at app startup to fail fast if Weaviate is unreachable.
+ * This is optional - getClient() will still work without calling this.
+ */
+async function verifyConnection(): Promise<boolean> {
+  if (globalForWeaviate.connectionVerified) {
+    return true;
+  }
+
+  const client = getClient();
+  const config = configService.getWeaviateConfig();
+
+  try {
+    await client.misc.readyChecker().do();
+    console.log(`[Weaviate] ✅ Connection verified - Weaviate is ready`);
+    globalForWeaviate.connectionVerified = true;
+    return true;
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error(`[Weaviate] ❌ Connection Failed:`, errorMessage);
+
+    // Provide helpful error messages
+    if (config.isCloud) {
+      console.error(
+        `   Possible causes:\n` +
+        `   - WCS cluster might be sleeping (sandbox tier)\n` +
+        `   - Invalid WEAVIATE_CLUSTER_URL: ${config.clusterUrl}\n` +
+        `   - Invalid WEAVIATE_API_KEY\n` +
+        `   - Network connectivity issues`
+      );
+    } else {
+      console.error(
+        `   Possible causes:\n` +
+        `   - Weaviate container not running (try: docker-compose up -d)\n` +
+        `   - Wrong WEAVIATE_HOST: ${config.host}:${config.port}\n` +
+        `   - Weaviate still starting up`
+      );
+    }
+
+    return false;
+  }
 }
 
 /**
@@ -283,9 +352,11 @@ async function deleteCollection(): Promise<void> {
 /**
  * Weaviate client service object.
  * All users share a single Documents collection.
+ * Supports both local (Docker) and cloud (WCS) modes via WEAVIATE_CLOUD env var.
  */
 export const weaviateClient = {
   getClient,
+  verifyConnection,
   getCollectionName,
   ensureCollectionExists,
   insertObject,

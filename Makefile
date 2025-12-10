@@ -1,35 +1,27 @@
-# Makefile for Ragster Project
+# Ragster - Simple Commands
 
-.PHONY: help up down build logs shell clean
+.PHONY: help up down logs clean build
 
-# Default target
 help:
-	@echo "Available commands:"
-	@echo "  make up      - Start all services in background"
-	@echo "  make down    - Stop and remove all services"
-	@echo "  make build   - Rebuild docker images"
-	@echo "  make logs    - View logs from all services"
-	@echo "  make shell   - Enter the ragster app container shell"
-	@echo "  make test    - Run unit tests"
-	@echo "  make clean   - Stop services and remove volumes (WARNING: deletes data)"
+	@echo ""
+	@echo "  make up      Start app (auto-detects local vs cloud from .env)"
+	@echo "  make down    Stop everything"
+	@echo "  make logs    View logs"
+	@echo "  make clean   Stop and delete all data"
+	@echo "  make build   Rebuild containers"
+	@echo ""
 
 up:
-	docker-compose up -d
+	docker-compose --profile local-weaviate up -d
 
 down:
-	docker-compose down
-
-build:
-	docker-compose build
+	docker-compose --profile local-weaviate down
 
 logs:
 	docker-compose logs -f
 
-shell:
-	docker-compose exec ragster sh
-
-test:
-	npm test
-
 clean:
-	docker-compose down -v
+	docker-compose --profile local-weaviate down -v
+
+build:
+	docker-compose build
