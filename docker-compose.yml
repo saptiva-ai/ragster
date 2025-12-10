@@ -12,11 +12,10 @@ services:
     environment:
       # MongoDB: uses Cloud if MONGODB_URI is set, otherwise local Docker
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/ragster}
-      # Weaviate: uses Cloud if WEAVIATE_CLUSTER_URL is set, otherwise local Docker
+      # Weaviate: local Docker por defecto, cambiar WEAVIATE_HOST para cloud
       - WEAVIATE_CLOUD=${WEAVIATE_CLOUD:-false}
-      - WEAVIATE_CLUSTER_URL=${WEAVIATE_CLUSTER_URL:-}
-      - WEAVIATE_API_KEY=${WEAVIATE_API_KEY:-}
       - WEAVIATE_HOST=${WEAVIATE_HOST:-weaviate}
+      - WEAVIATE_API_KEY=${WEAVIATE_API_KEY:-}
       - WEAVIATE_SCHEME=${WEAVIATE_SCHEME:-http}
       # Saptiva API
       - SAPTIVA_API_KEY=${SAPTIVA_API_KEY}

@@ -51,8 +51,9 @@ NEXT_PUBLIC_CHAT_API=https://api.saptiva.com/v1/chat/completions
 # AUTH (requerido)
 NEXTAUTH_SECRET=genera-un-secreto-aleatorio
 
-# MONGODB (vacío = local Docker, con valor = cloud)
-# MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/tu-database
+# MONGODB (Docker local por defecto, cambiar para cloud)
+MONGODB_URI=mongodb://mongo:27017/ragster
+# Para cloud: MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/tu-database
 
 # WEAVIATE (vacío = local Docker, con valor = cloud)
 # WEAVIATE_CLOUD=true
@@ -79,8 +80,9 @@ El sistema detecta automáticamente si usar servicios locales o cloud basándose
 
 **Todo local (desarrollo):**
 ```env
-# Solo necesitas Saptiva API y NEXTAUTH_SECRET
-# MongoDB y Weaviate corren en Docker automáticamente
+# Saptiva API y NEXTAUTH_SECRET son requeridos
+# MongoDB y Weaviate usan Docker local
+MONGODB_URI=mongodb://mongo:27017/ragster
 ```
 
 **MongoDB local + Weaviate cloud:**
