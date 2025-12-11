@@ -91,7 +91,7 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Navigate to project directory (adjust path as needed)
-            cd ~/ragster-weaviate || mkdir -p ~/ragster-weaviate && cd ~/ragster-weaviate
+            cd ~/ragster || mkdir -p ~/ragster && cd ~/ragster
             
             # Pull the latest image
             docker pull ghcr.io/${{ github.repository }}:latest

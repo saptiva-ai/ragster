@@ -29,8 +29,8 @@ Una aplicación web moderna construida con Next.js para procesar documentos, gen
 ## 🚀 Inicio Rápido
 
 ```bash
-git clone https://github.com/saptiva-ai/ragster-weaviate.git
-cd ragster-weaviate
+git clone https://github.com/saptiva-ai/ragster.git
+cd ragster
 cp .env.example .env
 # Edita .env con tu API key de Saptiva
 docker-compose --profile local up -d    # Local (todo en Docker)
@@ -238,7 +238,7 @@ Si tienes Git instalado, usa Git Bash - ya incluye make.
 ## Estructura del Proyecto
 
 ```
-ragster-weaviate/
+ragster/
 ├── src/              # Código fuente
 ├── public/           # Archivos estáticos
 ├── docker-compose.yml
