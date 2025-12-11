@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
 import {compare} from "bcryptjs";
+import { configService } from "@/lib/services/config";
 
 // Declaración de los tipos adicionales para la sesión y el usuario en NextAuth
 declare module "next-auth" {
@@ -40,7 +41,7 @@ export const authOptions: NextAuthOptions = {
 
         // Conectar a la base de datos
         const client = await clientPromise;
-        const db = client.db(process.env.MONGODB_DB); 
+        const db = client.db(configService.getMongoDBConfig().dbName); 
         const user = await db
           .collection("users")
           .findOne({email: credentials.email});
@@ -80,9 +81,9 @@ export const authOptions: NextAuthOptions = {
     },
     // Callback para personalizar la sesión
     async session({session, token}) {
-      if (session?.user) {
+      if (session?.user && token.id) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
+        session.user.role = (token.role as string) || null;
       }
       return session;
     },

@@ -3,6 +3,24 @@
  * Eliminates scattered process.env calls and validates required variables.
  */
 
+/**
+ * Extract database name from MongoDB URI.
+ * Works with both local and cloud URIs.
+ * Uses native URL API for safer parsing.
+ */
+function getDbNameFromUri(uri: string): string | null {
+  try {
+    // Replace mongodb+srv:// with https:// for URL parsing compatibility
+    const normalizedUri = uri.replace(/^mongodb(\+srv)?:\/\//, 'https://');
+    const url = new URL(normalizedUri);
+    // pathname is "/dbname", remove the leading slash
+    const dbName = url.pathname.substring(1);
+    return dbName || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface AppConfig {
   weaviate: {
     host: string;
@@ -10,6 +28,7 @@ export interface AppConfig {
     port: number;
     scheme: 'http' | 'https';
     isCloud: boolean;
+    collectionName: string;
   };
   embedding: {
     apiUrl: string;
@@ -73,6 +92,7 @@ class ConfigService {
         port: parseInt(process.env.WEAVIATE_PORT || '8080'),
         scheme: (process.env.WEAVIATE_SCHEME || 'http') as 'http' | 'https',
         isCloud,
+        collectionName: process.env.WEAVIATE_COLLECTION_NAME || 'Documents',
       },
       embedding: {
         apiUrl: process.env.EMBEDDING_API_URL || 'https://api.saptiva.com/api/embed',
@@ -91,7 +111,7 @@ class ConfigService {
       },
       mongodb: {
         uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
-        dbName: process.env.MONGODB_DB_NAME || 'ragster',
+        dbName: process.env.MONGODB_DB_NAME || getDbNameFromUri(process.env.MONGODB_URI || '') || 'ragster',
       },
     };
   }

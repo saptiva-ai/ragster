@@ -1,31 +1,25 @@
 import { MongoClient, Db } from 'mongodb';
+import { configService } from '../services/config';
 
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
-
-function getDbNameFromUri(uri: string): string {
-  // Extract DB name from URI path (e.g., mongodb://host/dbname or mongodb+srv://host/dbname)
-  const match = uri.match(/\/([^/?]+)(\?|$)/);
-  return match ? match[1] : 'ragster';
-}
 
 export async function connectToDatabase(): Promise<{ client: MongoClient, db: Db }> {
   if (cachedClient && cachedDb) {
     return { client: cachedClient, db: cachedDb };
   }
 
-  const uri = process.env.MONGODB_URI;
+  const mongoConfig = configService.getMongoDBConfig();
 
-  if (!uri) {
+  if (!mongoConfig.uri) {
     throw new Error('MongoDB URI no configurado. Por favor, configura MONGODB_URI en tu .env');
   }
 
-  const dbName = getDbNameFromUri(uri);
-  const client = new MongoClient(uri);
+  const client = new MongoClient(mongoConfig.uri);
 
   try {
     await client.connect();
-    const db = client.db(dbName);
+    const db = client.db(mongoConfig.dbName);
 
     cachedClient = client;
     cachedDb = db;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
-import clientPromise from "@/lib/mongodb";
+import { connectToDatabase } from "@/lib/mongodb/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,8 +13,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB);
+    const { db } = await connectToDatabase();
 
     // Verificar si el usuario ya existe
     const existingUser = await db.collection("users").findOne({ email });

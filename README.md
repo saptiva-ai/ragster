@@ -60,7 +60,8 @@ NEXTAUTH_SECRET=genera-un-secreto-aleatorio
 
 # MONGODB (Docker local por defecto, cambiar para cloud)
 MONGODB_URI=mongodb://mongo:27017/ragster
-# Para cloud: MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/tu-database
+# Para cloud: MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+# MONGODB_DB_NAME=ragster  # Required for cloud if URI doesn't include DB name
 
 # WEAVIATE (vacío = local Docker, con valor = cloud)
 # WEAVIATE_CLOUD=true
@@ -134,7 +135,8 @@ NEXTAUTH_SECRET=un-secreto-largo-y-seguro-para-produccion
 NEXTAUTH_URL=https://tu-dominio.com
 
 # MONGODB - Cloud Atlas
-MONGODB_URI=mongodb+srv://usuario:password@cluster.mongodb.net/ragster
+MONGODB_URI=mongodb+srv://usuario:password@cluster.mongodb.net/
+MONGODB_DB_NAME=ragster
 
 # WEAVIATE - Cloud
 WEAVIATE_CLOUD=true

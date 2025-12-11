@@ -1,6 +1,6 @@
 import {MongoClient, ServerApiVersion} from "mongodb";
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGODB_URI || 'mongodb://mongo:27017/ragster';
 const options = {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -34,8 +34,10 @@ if (uri) {
     clientPromise = client.connect();
   }
 } else {
-  // Durante build sin env vars, crear una promesa pendiente (nunca se resuelve durante build)
-  clientPromise = new Promise<MongoClient>(() => {});
+  // Fail fast: reject immediately if MONGODB_URI is missing at runtime
+  clientPromise = Promise.reject(
+    new Error("MONGODB_URI is not defined. Please set it in your .env file.")
+  );
 }
 
 export default clientPromise;

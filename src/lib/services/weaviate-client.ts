@@ -4,8 +4,9 @@ import { configService } from "./config";
 /**
  * Shared collection name for all documents.
  * All users share a single document pool.
+ * Configurable via WEAVIATE_COLLECTION_NAME env var.
  */
-const COLLECTION_NAME = "Documents";
+const COLLECTION_NAME = configService.getWeaviateConfig().collectionName;
 
 /**
  * Global reference for Weaviate client to survive Next.js hot reloads.
