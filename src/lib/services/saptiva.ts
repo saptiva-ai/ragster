@@ -96,12 +96,16 @@ export class SaptivaService {
       const payload = {
         model: MODEL_NAMES.OCR,
         messages: [
-          { role: "system", content: "Extrae todo el texto de la imagen" },
           {
             role: "user",
-            content: [{ type: "image_url", image_url: { url: dataUrl } }],
+            content: [
+              { type: "text", text: "OCR this image to markdown." },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
           },
         ],
+        max_tokens: 8000,
+        temperature: 0.1,
       };
 
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {

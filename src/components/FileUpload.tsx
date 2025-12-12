@@ -22,7 +22,9 @@ export default function FileUpload({ onFilesUploaded, isProcessing }: FileUpload
     accept: {
       'application/pdf': ['.pdf'],
       'text/plain': ['.txt'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'image/png': ['.png'],
+      'image/jpeg': ['.jpg', '.jpeg']
     },
     disabled: isProcessing,
     multiple: true
@@ -49,7 +51,7 @@ export default function FileUpload({ onFilesUploaded, isProcessing }: FileUpload
               {isDragActive ? 'Suelta tus archivos aquí' : 'Arrastra y suelta tus documentos'}
             </p>
             <p className="text-sm text-black">
-              o haz clic para seleccionar archivos (PDF, TXT, DOCX)
+              o haz clic para seleccionar archivos (PDF, TXT, DOCX, PNG, JPG)
             </p>
           </div>
         </div>

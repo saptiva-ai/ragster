@@ -27,14 +27,29 @@ export class ImageReader implements DocumentReader {
 
   async extract(file: File): Promise<ExtractedDocument> {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const content = await this.saptivaService.ocrImage(buffer, file.type);
+    return this.extractFromBuffer(buffer, {
+      filename: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    });
+  }
+
+  /**
+   * Extract text from an image buffer directly.
+   * More efficient when you already have a Buffer.
+   */
+  async extractFromBuffer(
+    buffer: Buffer,
+    metadata: { filename: string; fileType: string; fileSize: number }
+  ): Promise<ExtractedDocument> {
+    const content = await this.saptivaService.ocrImage(buffer, metadata.fileType);
 
     return {
       content,
       metadata: {
-        filename: file.name,
-        fileType: file.type,
-        fileSize: file.size,
+        filename: metadata.filename,
+        fileType: metadata.fileType,
+        fileSize: metadata.fileSize,
         uploadDate: new Date().toISOString(),
         userId: '',
         namespace: '',

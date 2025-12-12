@@ -2,6 +2,7 @@ import { JobQueue } from '@/lib/core/interfaces';
 import { QueueJob, UploadJobPayload } from '@/lib/core/types';
 import { readerFactory } from '../readers/reader-factory';
 import { OcrPdfReader } from '../readers/ocr-pdf-reader';
+import { ImageReader } from '../readers/image-reader';
 import { SentenceChunker } from '../chunkers/sentence-chunker';
 import { SaptivaEmbedder } from '../embedders/saptiva-embedder';
 import { weaviateClient } from '../weaviate-client';
@@ -123,16 +124,20 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     job.progress = 10;
     this.jobs.set(job.id, job);
 
-    // Select reader: OCR for PDFs when useOcr=true, otherwise auto-detect
+    // Select reader based on file type
     const isPdf = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+    const isImage = fileType.startsWith('image/') || /\.(png|jpg|jpeg|webp)$/i.test(fileName);
     let readerName: string;
 
     if (isPdf && useOcr) {
       readerName = 'OcrPdfReader';
     } else if (isPdf) {
       readerName = 'FastPdfReader';
+    } else if (isImage) {
+      // Images always use OCR (ImageReader uses Saptiva OCR)
+      readerName = 'ImageReader';
     } else {
-      // For non-PDFs, use auto-detection (will be handled by creating a File object)
+      // For other files (DOCX, TXT, etc.), use auto-detection
       readerName = 'auto';
     }
 
@@ -162,6 +167,15 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
           this.jobs.set(job.id, job);
         }
       );
+    } else if (readerName === 'ImageReader') {
+      // Image reader uses OCR automatically
+      const imageReader = new ImageReader();
+      console.log(`[Queue] ${job.id}: Processing image with OCR...`);
+      extracted = await imageReader.extractFromBuffer(fileBuffer, {
+        filename: fileName,
+        fileType: fileType,
+        fileSize: fileSize,
+      });
     } else {
       const reader = readerFactory.getReaderByName(readerName);
       // Use extractFromBuffer if available, otherwise create File

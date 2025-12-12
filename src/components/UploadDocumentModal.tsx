@@ -294,12 +294,12 @@ export default function UploadDocumentModal({
                               // limpiar para permitir re-seleccionar el mismo archivo
                               (e.currentTarget as HTMLInputElement).value = "";
                             }}
-                            accept=".pdf,.docx,.txt,.md"
+                            accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"
                             disabled={isUploading}
                           />
                         </label>
                       </div>
-                      <p className="text-xs text-black">PDF, DOCX, TXT hasta 10MB</p>
+                      <p className="text-xs text-black">PDF, DOCX, TXT, PNG, JPG hasta 10MB</p>
                     </div>
                   </div>
                 </div>
