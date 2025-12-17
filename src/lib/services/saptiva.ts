@@ -69,12 +69,15 @@ export class SaptivaService {
         .replace(/Thought:.*(\n|$)/gi, "")
         .trim();
 
-      await collection.insertOne({
-        message_id: id,
-        message_role: "assistant",
-        message: sinRazonamiento,
-        timestamp: new Date(),
-      });
+      // Don't save internal LLM calls (chunk-filter) to messages
+      if (!id.startsWith('chunk-filter')) {
+        await collection.insertOne({
+          message_id: id,
+          message_role: "assistant",
+          message: sinRazonamiento,
+          timestamp: new Date(),
+        });
+      }
 
       return sinRazonamiento;
     } catch (error) {

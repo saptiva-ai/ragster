@@ -6,8 +6,19 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   serverExternalPackages: ['mupdf', 'canvas'],
-  // Empty turbopack config to silence Next.js 16 warning
   turbopack: {},
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
+        ],
+      },
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.experiments = {

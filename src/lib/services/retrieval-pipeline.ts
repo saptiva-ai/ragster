@@ -2,10 +2,8 @@
 //
 // Steps after Weaviate search:
 // 1. THRESHOLD → Remove chunks scoring < 0.3 (noise)
-// 2. RERANK → Boost chunks with exact keyword matches (lexical boost)
-// 3. SOURCE BOOST → Favor documents with multiple matching chunks
-//
-// PROBLEM SOLVED: Raw search returns noise, misses exact matches
+// 2. SOURCE BOOST → Favor documents with multiple matching chunks
+// 3. EXPAND → Walk prev/next chain for complete context
 
 import { weaviateClient } from "./weaviate-client";
 import { RetrievalHit } from "@/lib/core/types";
@@ -82,16 +80,6 @@ function getDefaultRetrievalConfig(): RetrievalConfig {
 // Lazy-loaded default (for backward compatibility)
 export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = getDefaultRetrievalConfig();
 
-// SPANISH STOPWORDS (for lexical boost)
-
-const SPANISH_STOPWORDS = new Set([
-  "de", "la", "que", "el", "en", "y", "a", "los", "del", "se", "las", "por",
-  "un", "para", "con", "no", "una", "su", "al", "lo", "como", "mas", "pero",
-  "sus", "le", "ya", "o", "este", "si", "porque", "esta", "entre", "cuando",
-  "muy", "sin", "sobre", "ser", "tiene", "tambien", "me", "hasta", "hay",
-  "donde", "quien", "desde", "todo", "nos", "durante", "todos", "uno", "les",
-  "ni", "contra", "otros", "ese", "eso", "ante", "ellos", "e", "esto", "mi",
-]);
 
 // A2: SIMILARITY THRESHOLD FILTER
 
@@ -113,149 +101,6 @@ export function filterByThreshold(
   return filtered;
 }
 
-// A3: LEXICAL BOOST RERANKING
-
-/**
- * Tokenize text for lexical matching.
- */
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .normalize("NFD").replace(/\p{Diacritic}/gu, "")
-    .match(/[a-z0-9%.-]+/g) || [];
-}
-
-/**
- * Lexical boost reranking.
- * Combines semantic score with exact token matches.
- */
-export function lexicalBoostRerank(
-  query: string,
-  results: RetrievalHit[]
-): RetrievalHit[] {
-  if (results.length === 0) return results;
-
-  const SCORE_WEIGHT = 1.0;
-  const BOOST_WEIGHT = 0.15;
-
-  // Extract key tokens from query
-  const qTokens = tokenize(query);
-  const qNums = qTokens.filter(t => /\d/.test(t));
-  const qRare = qTokens.filter(t => t.length >= 5 && !SPANISH_STOPWORDS.has(t));
-  let keyTokens = [...new Set([...qNums, ...qRare])];
-
-  // DF filter: remove tokens in >60% of chunks
-  if (keyTokens.length > 0) {
-    const tokenDocFreq = new Map<string, number>();
-
-    for (const r of results) {
-      const text = String(r.properties.text || "")
-        .toLowerCase()
-        .normalize("NFD").replace(/\p{Diacritic}/gu, "");
-
-      for (const t of keyTokens) {
-        if (text.includes(t)) {
-          tokenDocFreq.set(t, (tokenDocFreq.get(t) || 0) + 1);
-        }
-      }
-    }
-
-    const dfThreshold = results.length * 0.6;
-    keyTokens = keyTokens.filter(t => (tokenDocFreq.get(t) || 0) <= dfThreshold);
-  }
-
-  if (keyTokens.length === 0) {
-    return results.map(r => ({ ...r, _boost: 0, _finalScore: r.score ?? 0 }));
-  }
-
-  // Calculate boost for each result
-  const scored = results.map((r, idx) => {
-    const text = String(r.properties.text || "")
-      .toLowerCase()
-      .normalize("NFD").replace(/\p{Diacritic}/gu, "");
-
-    let boost = 0;
-    for (const t of keyTokens) {
-      if (text.includes(t)) {
-        boost += /\d/.test(t) ? 3 : 1; // Numbers get 3x weight
-      }
-    }
-
-    const weaviateScore = r.score ?? 0;
-    const finalScore = (weaviateScore * SCORE_WEIGHT) + (boost * BOOST_WEIGHT);
-
-    return { ...r, _boost: boost, _finalScore: finalScore, _idx: idx };
-  });
-
-  // Stable sort by final score
-  scored.sort((a, b) => (b._finalScore - a._finalScore) || (a._idx - b._idx));
-
-  // Remove _idx
-  return scored.map((item) => {
-    const { _idx: _unused, ...rest } = item;
-    void _unused;
-    return rest;
-  });
-}
-
-// AGGREGATE KEYWORD BOOST
-
-const AGGREGATE_KEYWORDS = [
-  "total",
-  "subtotal",
-  "suma",
-  "en total",
-  "puntaje global",
-  "resultado final",
-  "cantidad total",
-  "monto total",
-  "grand total",
-  "overall",
-  "sum",
-  "aggregate",
-];
-
-/**
- * Check if query asks for aggregate/total values.
- */
-function isAggregateQuery(query: string): boolean {
-  const q = query.toLowerCase();
-  return AGGREGATE_KEYWORDS.some(kw => q.includes(kw));
-}
-
-/**
- * Boost chunks that contain aggregate keywords.
- * Only applied when the query itself asks for totals.
- */
-export function applyAggregateBoost(
-  query: string,
-  results: RetrievalHit[],
-  boostAmount: number = 0.25
-): RetrievalHit[] {
-  if (!isAggregateQuery(query)) {
-    return results;
-  }
-
-  console.log(`[AggregateBoost] Query asks for total/aggregate, boosting relevant chunks`);
-
-  return results.map(r => {
-    const text = String(r.properties.text || "").toLowerCase();
-
-    // Check if chunk contains aggregate keywords
-    const hasAggregate = AGGREGATE_KEYWORDS.some(kw => text.includes(kw));
-
-    if (hasAggregate) {
-      const currentScore = r._finalScore ?? r.score ?? 0;
-      return {
-        ...r,
-        _finalScore: currentScore + boostAmount,
-        _aggregateBoost: boostAmount,
-      };
-    }
-
-    return r;
-  });
-}
 
 // STEP 5: CONTEXT EXPANSION
 //
@@ -482,11 +327,9 @@ export class RetrievalPipeline {
    *
    * Flow:
    * 1. Fetch candidates (with autocut or limit)
-   * 2. Filter by threshold (A2)
-   * 3. Lexical boost rerank (A3)
-   * 4. Keep top-K (A3)
-   * 5. Apply source boost (A6)
-   * 6. Expand context (walk adjacent chunks)
+   * 2. Filter by threshold
+   * 3. Apply source boost
+   * 4. Expand context (walk adjacent chunks)
    */
   async execute(
     query: string,
@@ -543,22 +386,9 @@ export class RetrievalPipeline {
     // Step 2: Filter by threshold (A2)
     results = filterByThreshold(results, this.config.minSimilarityThreshold);
     const afterThreshold = results.length;
+    const afterRerank = afterThreshold;
 
-    // Step 3: Lexical boost rerank (A3) - DISABLED
-    // results = lexicalBoostRerank(query, results);
-
-    // Step 3.5: Aggregate keyword boost - DISABLED
-    // results = applyAggregateBoost(query, results);
-
-    // Re-sort after aggregate boost - DISABLED
-    // results.sort((a, b) => (b._finalScore ?? 0) - (a._finalScore ?? 0));
-
-    // Step 4: Keep top-K (A3) - DISABLED
-    // results = results.slice(0, this.config.targetChunks);
-    const afterRerank = results.length;
-    console.log(`[A3:Rerank] DISABLED - keeping all ${afterRerank} chunks`);
-
-    // Step 5: Apply source boost (A6)
+    // Apply source boost
     if (this.config.enableSourceBoost) {
       results = applySourceBoost(results, this.config);
     }
