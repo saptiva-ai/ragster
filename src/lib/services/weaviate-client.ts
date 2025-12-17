@@ -1,5 +1,6 @@
-import weaviate, { WeaviateClient } from "weaviate-ts-client";
+import weaviate, { WeaviateClient, FusionType } from "weaviate-ts-client";
 import { configService } from "./config";
+import { WeaviateSearchResult, ChunkResult, StoredObject } from "@/lib/core/types";
 
 /**
  * Shared collection name for all documents.
@@ -210,15 +211,15 @@ async function insertBatch(
 async function searchByVector(
   vector: number[],
   limit: number = 10,
-  fields: string = "text sourceName chunkIndex totalChunks"
-): Promise<Array<{ properties: Record<string, unknown> }>> {
+  fields: string = "text sourceName chunkIndex totalChunks prevChunkIndex nextChunkIndex"
+): Promise<WeaviateSearchResult[]> {
   const client = getClient();
   const className = COLLECTION_NAME;
 
   const result = await client.graphql
     .get()
     .withClassName(className)
-    .withFields(fields)
+    .withFields(`${fields} _additional { distance }`)
     .withNearVector({ vector })
     .withLimit(limit)
     .do();
@@ -227,7 +228,140 @@ async function searchByVector(
 
   return objects.map((obj: Record<string, unknown>) => ({
     properties: obj,
+    // Convert distance to score (distance 0 = score 1, distance 1 = score 0)
+    // Clamp to avoid negative scores if distance > 1
+    score: Math.max(0, 1 - ((obj._additional as { distance?: number })?.distance ?? 1)),
   }));
+}
+
+// HYBRID SEARCH → Combines BM25 (keyword) + Vector (semantic)
+// alpha=0.75 → 75% vector, 25% BM25 (default for semantic queries)
+// alpha=0.35 → 35% vector, 65% BM25 (for numeric/exact queries)
+// PROBLEM SOLVED: Pure vector misses exact matches, pure BM25 misses meaning
+async function searchHybrid(
+  query: string,
+  vector: number[],
+  limit: number = 25,
+  alpha: number = 0.75,
+  fields: string = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex"
+): Promise<WeaviateSearchResult[]> {
+  const client = getClient();
+  const className = COLLECTION_NAME;
+
+  // Include explainScore for debugging (only logged when DEBUG_RAG=true)
+  // Also request distance as fallback if score is missing
+  const result = await client.graphql
+    .get()
+    .withClassName(className)
+    .withFields(`${fields} _additional { score explainScore distance }`)
+    .withHybrid({
+      query,
+      vector,
+      alpha,
+      fusionType: FusionType.relativeScoreFusion,
+    })
+    .withLimit(limit)
+    .do();
+
+  const objects = result?.data?.Get?.[className] ?? [];
+
+  return objects.map((obj: Record<string, unknown>) => {
+    // Normalize score to number (Weaviate sometimes returns string)
+    const additional = obj._additional as Record<string, unknown> | undefined;
+    const rawScore = additional?.score;
+    const scoreNum = rawScore != null ? Number(rawScore) : undefined;
+
+    // Fallback: use distance if score is missing
+    const rawDistance = additional?.distance;
+    const distNum = rawDistance != null ? Number(rawDistance) : undefined;
+
+    // If score is missing/invalid but distance exists, synthesize a score
+    // Use typeof checks to satisfy TypeScript narrowing
+    const fallbackScore =
+      typeof scoreNum === "number" && Number.isFinite(scoreNum)
+        ? scoreNum
+        : typeof distNum === "number" && Number.isFinite(distNum)
+          ? Math.max(0, 1 - distNum)
+          : undefined;
+
+    // Debug: log raw _additional to see what Weaviate returns
+    if (process.env.DEBUG_RAG === 'true' && additional) {
+      console.log(`[Weaviate] _additional raw:`, JSON.stringify(additional));
+    }
+
+    // Remove _additional from properties to avoid duplication
+    const { _additional, ...cleanProps } = obj;
+    void _additional; // silence ESLint unused var warning
+
+    return {
+      properties: cleanProps,
+      score: fallbackScore,
+      explainScore: additional?.explainScore as string | undefined,
+    };
+  });
+}
+
+/**
+ * Hybrid search with Weaviate's autoLimit (dynamic autocut).
+ * Autocut automatically decides how many results based on score drops.
+ * This prevents arbitrary hard limits and uses more of the context budget.
+ *
+ * @param query - The search query text (for BM25)
+ * @param vector - The query embedding (for vector search)
+ * @param autoLimit - Autocut sensitivity: 1=aggressive, 2=balanced, 3=lenient
+ * @param alpha - Balance between vector (1.0) and BM25 (0.0). Default 0.5 (balanced)
+ * @param fields - Fields to return
+ */
+async function searchHybridAutocut(
+  query: string,
+  vector: number[],
+  autoLimit: number = 2,
+  alpha: number = 0.5,
+  fields: string = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex"
+): Promise<WeaviateSearchResult[]> {
+  const client = getClient();
+  const className = COLLECTION_NAME;
+
+  const result = await client.graphql
+    .get()
+    .withClassName(className)
+    .withFields(`${fields} _additional { score explainScore distance }`)
+    .withHybrid({
+      query,
+      vector,
+      alpha,
+      fusionType: FusionType.relativeScoreFusion,
+    })
+    .withAutocut(autoLimit)
+    .do();
+
+  const objects = result?.data?.Get?.[className] ?? [];
+  console.log(`[Autocut] Returned ${objects.length} results (sensitivity=${autoLimit}, alpha=${alpha})`);
+
+  return objects.map((obj: Record<string, unknown>) => {
+    const additional = obj._additional as Record<string, unknown> | undefined;
+    const rawScore = additional?.score;
+    const scoreNum = rawScore != null ? Number(rawScore) : undefined;
+
+    const rawDistance = additional?.distance;
+    const distNum = rawDistance != null ? Number(rawDistance) : undefined;
+
+    const fallbackScore =
+      typeof scoreNum === "number" && Number.isFinite(scoreNum)
+        ? scoreNum
+        : typeof distNum === "number" && Number.isFinite(distNum)
+          ? Math.max(0, 1 - distNum)
+          : undefined;
+
+    const { _additional, ...cleanProps } = obj;
+    void _additional;
+
+    return {
+      properties: cleanProps,
+      score: fallbackScore,
+      explainScore: additional?.explainScore as string | undefined,
+    };
+  });
 }
 
 /**
@@ -235,7 +369,7 @@ async function searchByVector(
  */
 async function getAllObjects(
   limit: number = 10000
-): Promise<Array<{ id: string; properties: Record<string, unknown> }>> {
+): Promise<StoredObject[]> {
   const client = getClient();
   const className = COLLECTION_NAME;
 
@@ -336,6 +470,50 @@ async function deleteByFilter(
 }
 
 /**
+ * Get specific chunks by sourceName and chunk IDs.
+ * Used for fetching adjacent chunks in the window technique.
+ */
+async function getChunksByIds(
+  sourceName: string,
+  chunkIds: number[],
+  fields: string = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex"
+): Promise<ChunkResult[]> {
+  const client = getClient();
+  const className = COLLECTION_NAME;
+
+  if (chunkIds.length === 0) return [];
+
+  // Fetch chunks one query per ID (safest for Weaviate v2.x compatibility)
+  const results: Array<{ properties: Record<string, unknown> }> = [];
+
+  for (const chunkId of chunkIds) {
+    const result = await client.graphql
+      .get()
+      .withClassName(className)
+      .withFields(fields)
+      .withWhere({
+        operator: "And",
+        operands: [
+          { path: ["sourceName"], operator: "Equal", valueText: sourceName },
+          { path: ["chunkIndex"], operator: "Equal", valueInt: chunkId },
+        ],
+      })
+      .withLimit(1)
+      .do();
+
+    const objects = result?.data?.Get?.[className] ?? [];
+    if (objects.length > 0) {
+      results.push({ properties: objects[0] });
+    }
+  }
+
+  // Sort by chunkIndex to maintain order
+  return results.sort((a, b) =>
+    (a.properties.chunkIndex as number) - (b.properties.chunkIndex as number)
+  );
+}
+
+/**
  * Delete the entire shared collection.
  * WARNING: This deletes ALL documents for ALL users!
  */
@@ -365,6 +543,9 @@ export const weaviateClient = {
   insertObject,
   insertBatch,
   searchByVector,
+  searchHybrid,
+  searchHybridAutocut,
+  getChunksByIds,
   getAllObjects,
   updateObject,
   deleteObject,
