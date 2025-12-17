@@ -10,10 +10,11 @@ export class SaptivaService {
   private apiKey: string;
   private baseUrl: string;
 
-  constructor(apiKey: string, baseUrl: string = "https://api.saptiva.com") {
+  constructor(apiKey: string, baseUrl?: string) {
     this.apiKey = apiKey;
+    const url = baseUrl || "https://api.saptiva.com";
     // Remove trailing slash to prevent double slash in URL
-    this.baseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    this.baseUrl = url.endsWith("/") ? url.slice(0, -1) : url;
   }
 
   // GENERATE TEXT → Main LLM call to Saptiva API
