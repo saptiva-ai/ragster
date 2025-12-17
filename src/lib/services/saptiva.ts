@@ -1,7 +1,11 @@
+// SAPTIVA SERVICE
+//
+// LLM API client for text generation and OCR.
+// Used for: 1) Chunk filtering (2nd call), 2) Answer generation (main call)
+
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { DEFAULT_MODELS, MODEL_NAMES } from "@/config/models";
 
-// Servicio para interactuar con la API de Saptiva
 export class SaptivaService {
   private apiKey: string;
   private baseUrl: string;
@@ -12,16 +16,8 @@ export class SaptivaService {
     this.baseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   }
 
-  /**
-   * Realiza una solicitud a la API de Saptiva para generar texto
-   *
-   * @param id - Message ID for storing in DB
-   * @param systemMessage - System role content (instructions only)
-   * @param userMessage - User role content (context + query)
-   * @param model - Model name
-   * @param temperature - Temperature for generation
-   * @param maxTokens - Max tokens for response
-   */
+  // GENERATE TEXT → Main LLM call to Saptiva API
+  // Called by: route.ts (answer generation), chunk-filter.ts (filtering)
   async generateText(
     id: string,
     systemMessage: string,

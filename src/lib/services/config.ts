@@ -49,6 +49,35 @@ export interface AppConfig {
     uri: string;
     dbName: string;
   };
+  retrieval: {
+    // Similarity threshold
+    minSimilarityThreshold: number;
+    // Over-fetch + rerank
+    targetChunks: number;
+    overFetchMultiplier: number;
+    // Source aggregation boost
+    enableSourceBoost: boolean;
+    maxSourceBoost: number;
+    boostPerMatch: number;
+    // Search params
+    alpha: number;
+    autocutSensitivity: number;
+  };
+  expansion: {
+    enabled: boolean;
+    budgetChars: number;
+    maxSteps: number;
+    scoreThreshold: number;
+    maxChunksPerStep: number;
+    expansionScore: number;  // Score given to expanded chunks
+  };
+  llmFilter: {
+    enabled: boolean;
+    batchSize: number;
+    maxCharsPerChunk: number;
+    targetChunks: number;
+    temperature: number;
+  };
 }
 
 class ConfigService {
@@ -113,6 +142,34 @@ class ConfigService {
         uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
         dbName: process.env.MONGODB_DB_NAME || getDbNameFromUri(process.env.MONGODB_URI || '') || 'ragster',
       },
+      // ============================================
+      // RETRIEVAL PIPELINE CONFIG (single source of truth)
+      // ============================================
+      retrieval: {
+        minSimilarityThreshold: 0.3,
+        targetChunks: 10,
+        overFetchMultiplier: 3,
+        enableSourceBoost: true,
+        maxSourceBoost: 0.2,
+        boostPerMatch: 0.05,
+        alpha: 0.5,
+        autocutSensitivity: 1,
+      },
+      expansion: {
+        enabled: true,
+        budgetChars: 4000,
+        maxSteps: 2,
+        scoreThreshold: 0.5,
+        maxChunksPerStep: 4,
+        expansionScore: 0.1,  // Score for expanded chunks (not 0!)
+      },
+      llmFilter: {
+        enabled: true,  // Semantic relevance filter - LLM judges if chunks answer the question
+        batchSize: 10,
+        maxCharsPerChunk: 800,
+        targetChunks: 8,
+        temperature: 0.1,
+      },
     };
   }
 
@@ -137,6 +194,18 @@ class ConfigService {
 
   getMongoDBConfig() {
     return this.getConfig().mongodb;
+  }
+
+  getRetrievalConfig() {
+    return this.getConfig().retrieval;
+  }
+
+  getExpansionConfig() {
+    return this.getConfig().expansion;
+  }
+
+  getLLMFilterConfig() {
+    return this.getConfig().llmFilter;
   }
 }
 

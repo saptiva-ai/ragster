@@ -46,12 +46,6 @@ describe('SaptivaService', () => {
     const mockPrompt = 'Eres un asistente útil.';
     const mockQuery = '¿Cuál es mi saldo?';
     const mockResponseText = 'Tu saldo es 100.';
-    
-    // Historial simulado (lo que probamos que se envíe)
-    const mockHistory = [
-      { role: 'user', content: 'Hola' },
-      { role: 'assistant', content: 'Hola, ¿en qué puedo ayudarte?' }
-    ];
 
     // Mockear respuesta exitosa de Saptiva API
     fetchMock.mockResolvedValueOnce({
@@ -68,14 +62,14 @@ describe('SaptivaService', () => {
     });
 
     // 2. Ejecutar el método bajo prueba
+    // Note: Current API doesn't support history parameter - it's handled at the route level
     const result = await service.generateText(
       mockId,
       mockPrompt,
       mockQuery,
       'default-model',
       0.5,
-      1000,
-      mockHistory // <--- Pasamos el historial aquí
+      1000
     );
 
     // 3. Aserciones
@@ -95,10 +89,10 @@ describe('SaptivaService', () => {
       })
     );
 
-    // CRÍTICO: Verificar que el body enviado incluya system + history + user query en orden
+    // CRÍTICO: Verificar que el body enviado incluya system + user query en orden
+    // Note: History is now handled at route level, not in SaptivaService
     const expectedMessages = [
       { role: 'system', content: mockPrompt },
-      ...mockHistory, // Aquí verificamos que el historial se inyectó en medio
       { role: 'user', content: mockQuery },
     ];
 

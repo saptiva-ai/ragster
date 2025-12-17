@@ -3,7 +3,7 @@ import { QueueJob, UploadJobPayload } from '@/lib/core/types';
 import { readerFactory } from '../readers/reader-factory';
 import { OcrPdfReader } from '../readers/ocr-pdf-reader';
 import { ImageReader } from '../readers/image-reader';
-import { SentenceChunker } from '../chunkers/sentence-chunker';
+import { RecursiveChunker } from '../chunkers/recursive-chunker';
 import { SaptivaEmbedder } from '../embedders/saptiva-embedder';
 import { weaviateClient } from '../weaviate-client';
 import { connectToDatabase } from '@/lib/mongodb/client';
@@ -194,26 +194,63 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     job.progress = 30;
     this.jobs.set(job.id, job);
 
-    // 2. Chunking
+    // 2. Chunking - use right chunker for the source type
     job.stage = 'chunking';
     job.progress = 35;
     this.jobs.set(job.id, job);
-    console.log(`[Queue] ${job.id}: Chunking text...`);
 
-    // Use 15 sentences per chunk (approx ~1000 chars like old version) to reduce API calls
-    const chunker = new SentenceChunker(15, 2);
+    // ALWAYS use RecursiveChunker - SentenceChunker creates too many tiny chunks
+    // which causes slow embeddings (6676 chunks vs ~500) and noisy retrieval
+    //
+    // Config: 1200 chars per chunk, 150 char overlap
+    // Result: ~400-900 chunks for most documents (5-10 min embedding)
+    const chunkerName = 'RecursiveChunker';
+
+    console.log(`[Queue] ${job.id}: Chunking with ${chunkerName}...`);
+
+    const chunker = new RecursiveChunker(1200, 150);
     const chunks = await chunker.chunk(extracted.content, {});
+
+    // Check if no content was extracted
+    if (chunks.length === 0) {
+      const isUsingOcr = readerName === 'OcrPdfReader' || readerName === 'ImageReader';
+      if (isUsingOcr) {
+        throw new Error(
+          `No se pudo extraer contenido del documento "${fileName}" incluso usando OCR. ` +
+          `El archivo puede estar dañado o no contener texto legible.`
+        );
+      } else {
+        throw new Error(
+          `No se pudo extraer contenido del documento "${fileName}". ` +
+          `El archivo puede ser un PDF escaneado (imagen). ` +
+          `Intente subir el archivo nuevamente con la opción OCR activada.`
+        );
+      }
+    }
+
     job.progress = 50;
     this.jobs.set(job.id, job);
 
     // 4. Embeddings
     job.stage = 'embedding';
     job.progress = 55;
+    job.embeddingProgress = 0;
+    job.embeddingTotal = chunks.length;
     this.jobs.set(job.id, job);
     console.log(`[Queue] ${job.id}: Generating embeddings for ${chunks.length} chunks...`);
 
     const embedder = new SaptivaEmbedder();
-    const embeddings = await embedder.embedBatch(chunks.map(c => c.content));
+    const embeddings = await embedder.embedBatch(
+      chunks.map(c => c.content),
+      undefined,
+      (completed, total) => {
+        job.embeddingProgress = completed;
+        job.embeddingTotal = total;
+        // Scale progress: 55-80% during embedding
+        job.progress = 55 + Math.round((completed / total) * 25);
+        this.jobs.set(job.id, job);
+      }
+    );
     job.progress = 80;
     this.jobs.set(job.id, job);
 
@@ -252,7 +289,7 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
         startPosition: chunk.startPosition ?? 0,
         endPosition: chunk.endPosition ?? chunk.content.length,
         contentWithoutOverlap: chunk.contentWithoutOverlap ?? chunk.content,
-        chunkerUsed: 'SentenceChunker',
+        chunkerUsed: chunkerName,
       },
       vector: embeddings[index].embedding,
     }));
@@ -271,7 +308,7 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
           vectorsUploaded: chunks.length,
           status: 2,
           language: 'es',
-          chunkerUsed: 'SentenceChunker',
+          chunkerUsed: chunkerName,
         },
       }
     );
