@@ -23,6 +23,9 @@ export interface QueueJob {
   // OCR-specific progress info
   ocrPage?: number;
   ocrTotalPages?: number;
+  // Embedding progress info
+  embeddingProgress?: number;
+  embeddingTotal?: number;
 }
 
 /**
