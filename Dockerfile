@@ -16,7 +16,11 @@ RUN apt-get update && apt-get install -y \
   librsvg2-dev \
   libfreetype6-dev \
   libfontconfig1-dev \
+  libvips-dev \
   && rm -rf /var/lib/apt/lists/*
+
+# Force sharp to use system libvips (avoid GitHub download)
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
 
 WORKDIR /app
 

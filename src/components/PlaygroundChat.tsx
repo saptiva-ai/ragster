@@ -181,6 +181,21 @@ export default function PlaygroundChat() {
     // Add message to queue and clear input immediately
     const userInput = input.trim();
     setInput("");
+
+    // Secret: split by ;; to queue multiple messages at once
+    if (userInput.includes(';;')) {
+      const questions = userInput
+        .split(';;')
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      if (questions.length > 1) {
+        setMessageQueue((prev) => [...prev, ...questions]);
+        return;
+      }
+    }
+
+    // Normal single message
     setMessageQueue((prev) => [...prev, userInput]);
   };
 
@@ -543,12 +558,12 @@ export default function PlaygroundChat() {
               }
             }}
           />
-          {/* Queue indicator badge */}
-          {messageQueue.length > 0 && (
+          {/* Queue indicator badge - hidden */}
+          {/* {messageQueue.length > 0 && (
             <div className="absolute left-3 top-1/2 -translate-y-1/2 bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-medium">
               {messageQueue.length} en cola
             </div>
-          )}
+          )} */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
             <button
               type="submit"

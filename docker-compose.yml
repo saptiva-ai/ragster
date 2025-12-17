@@ -25,6 +25,9 @@ services:
       # Auth
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3001}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      # Debug - shows chunk text at each step
+      - DEBUG_RAG=${DEBUG_RAG:-true}
+      - DEBUG_RAG_FULL=${DEBUG_RAG_FULL:-true}
     networks:
       - ragster_net
 
