@@ -112,3 +112,16 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+/**
+ * GET /api/upload-weaviate
+ * Pre-flight endpoint for CF challenge warm-up.
+ * Returns 200 OK if authenticated, triggers CF challenge if needed.
+ */
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return NextResponse.json({ ok: true });
+}

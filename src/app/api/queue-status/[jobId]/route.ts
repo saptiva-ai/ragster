@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { uploadQueue } from '@/lib/services/queue';
 
 /**
@@ -9,6 +11,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  // Auth check
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { jobId } = await params;
 
   const job = uploadQueue.getStatus(jobId);
@@ -32,5 +40,8 @@ export async function GET(
     // OCR progress info
     ocrPage: job.ocrPage,
     ocrTotalPages: job.ocrTotalPages,
+    // Embedding progress info
+    embeddingProgress: job.embeddingProgress,
+    embeddingTotal: job.embeddingTotal,
   });
 }
