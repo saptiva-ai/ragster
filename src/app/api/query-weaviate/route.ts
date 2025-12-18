@@ -30,6 +30,28 @@ import { RAGLogger } from "@/lib/services/rag-logger";
 /** Short queries (1-2 words) likely mean "continue" - use previous question for search */
 const MAX_WORDS_FOR_AMBIGUOUS = 2;
 
+/**
+ * Removes question words that add noise to BM25 keyword search.
+ * Only affects retrieval - LLM still sees the original query.
+ * "What is the refund policy?" → "refund policy"
+ */
+function cleanQueryForSearch(query: string): string {
+  const EN_STARTERS = /^(what|who|how|which|where|why|when|is|are|does|do|did|can|could|would|should|will|tell me|please|help|explain|describe|show me|give me|find|get|i need|i want)\s+/gi;
+  const ES_STARTERS = /^(qué|quién|cómo|cuál|cuáles|dónde|por qué|cuánto|cuántos|cuánta|cuántas|cuándo|es|son|hay|tiene|tienen|puedo|puede|podría|dime|ayuda|explica|muestra|busca|necesito|quiero)\s+/gi;
+  const FILLERS = /\b(the|a|an|el|la|los|las|un|una|unos|unas)\b/gi;
+
+  const cleaned = query
+    .replace(EN_STARTERS, '')
+    .replace(ES_STARTERS, '')
+    .replace(/^[¿?¡!]+/, '')
+    .replace(FILLERS, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Fallback if too aggressive
+  return cleaned.length < 3 ? query : cleaned;
+}
+
 // STEP 1: CLASSIFY QUESTION → Determines alpha for hybrid search
 //
 // WHY: Different question types need different search strategies
@@ -260,6 +282,8 @@ PROHIBIDO:
 - Omitir condiciones o excepciones
 - Simplificar relaciones entre variables
 
+Cuando menciones datos específicos, puedes indicar el documento fuente si es relevante.
+
 Responde en español, de forma clara y profesional.`;
 
   let message = `${systemPrompt}\n\n${ragInstructions}`;
@@ -381,7 +405,8 @@ export async function POST(req: NextRequest) {
     // Short queries (1-2 words) are likely "continue" responses - use previous question for search
     const wordCount = cleanQuery.trim().split(/\s+/).length;
     const isShortQuery = wordCount <= MAX_WORDS_FOR_AMBIGUOUS;
-    const searchQuery = isShortQuery && previousQuestion ? previousQuestion : cleanQuery;
+    const baseSearchQuery = isShortQuery && previousQuestion ? previousQuestion : cleanQuery;
+    const searchQuery = cleanQueryForSearch(baseSearchQuery);
 
     const isDebug = process.env.DEBUG_RAG === 'true' || process.env.NODE_ENV !== 'production';
 

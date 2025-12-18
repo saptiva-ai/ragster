@@ -238,6 +238,10 @@ async function searchByVector(
 // alpha=0.75 → 75% vector, 25% BM25 (default for semantic queries)
 // alpha=0.35 → 35% vector, 65% BM25 (for numeric/exact queries)
 // PROBLEM SOLVED: Pure vector misses exact matches, pure BM25 misses meaning
+
+// Field boosting for BM25: sourceName (title) matches score higher than content
+const BM25_PROPERTIES = ["sourceName^3", "text"];
+
 async function searchHybrid(
   query: string,
   vector: number[],
@@ -258,6 +262,7 @@ async function searchHybrid(
       query,
       vector,
       alpha,
+      properties: BM25_PROPERTIES,
       fusionType: FusionType.relativeScoreFusion,
     })
     .withLimit(limit)
@@ -330,6 +335,7 @@ async function searchHybridAutocut(
       query,
       vector,
       alpha,
+      properties: BM25_PROPERTIES,
       fusionType: FusionType.relativeScoreFusion,
     })
     .withAutocut(autoLimit)
