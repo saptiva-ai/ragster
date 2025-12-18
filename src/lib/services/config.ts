@@ -101,18 +101,10 @@ class ConfigService {
   }
 
   private loadConfig(): AppConfig {
-    // Validate required environment variables
-    const required = [
-      'SAPTIVA_API_KEY',
-    ];
-
-    for (const key of required) {
-      if (!process.env[key]) {
-        throw new Error(`Missing required environment variable: ${key}`);
-      }
-    }
-
+    // Skip validation during build time - will fail at runtime if missing
+    // This allows Next.js to build without requiring env vars
     const isCloud = process.env.WEAVIATE_CLOUD === 'true';
+    const apiKey = process.env.SAPTIVA_API_KEY || '';
 
     return {
       weaviate: {
@@ -125,13 +117,13 @@ class ConfigService {
       },
       embedding: {
         apiUrl: process.env.EMBEDDING_API_URL || 'https://api.saptiva.com/api/embed',
-        apiKey: process.env.SAPTIVA_API_KEY!,
+        apiKey,
         model: process.env.EMBEDDING_MODEL || 'Saptiva Embed',
         dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
       },
       llm: {
         apiUrl: process.env.LLM_API_URL || process.env.SAPTIVA_API_BASE_URL || 'https://api.saptiva.com',
-        apiKey: process.env.SAPTIVA_API_KEY!,
+        apiKey,
         model: process.env.LLM_MODEL || 'DeepSeek-R1',
       },
       chunking: {
