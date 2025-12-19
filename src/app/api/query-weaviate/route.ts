@@ -37,7 +37,7 @@ import {
 import { debug } from "@/lib/utils/debug";
 
 // ================================
-// CONSTANTS (single source of truth for magic numbers)
+// CONSTANTS 
 // ================================
 
 const RAG_CONST = {
