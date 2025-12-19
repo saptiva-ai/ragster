@@ -29,10 +29,13 @@ export interface QADetectionResult {
 }
 
 // Minimum coverage to treat document as Q&A format
-const QA_COVERAGE_THRESHOLD = 0.4;  // 40% of doc must be Q&A pairs
+const QA_COVERAGE_THRESHOLD = 0.8;  // 80% of doc must be Q&A pairs
 
 // Minimum Q&A pairs to trigger Q&A mode
 const MIN_QA_PAIRS = 3;
+
+// Max characters per Q&A answer - if longer, reject as not real FAQ
+const MAX_ANSWER_CHARS = 3000;
 
 /**
  * Detect Q&A structure in text.
@@ -62,10 +65,16 @@ export function detectQAStructure(text: string): QADetectionResult {
     const answer = match.groups?.answer?.trim();
 
     if (question && answer && answer.length > 20) {  // Answer must be substantive
-      // Clean up answer: remove trailing whitespace, limit to reasonable size
+      // Clean up answer: remove trailing whitespace
       const cleanAnswer = answer
         .replace(/\n{3,}/g, '\n\n')  // Collapse multiple newlines
         .trim();
+
+      // Skip if answer is too long (not a real FAQ - probably grabbed entire doc)
+      if (cleanAnswer.length > MAX_ANSWER_CHARS) {
+        console.warn(`[QnAChunker] Skipping Q&A pair - answer too long (${cleanAnswer.length} chars)`);
+        continue;
+      }
 
       pairs.push({
         question,
@@ -102,6 +111,12 @@ export function detectQAStructure(text: string): QADetectionResult {
           const cleanAnswer = answer
             .replace(/\n{3,}/g, '\n\n')
             .trim();
+
+          // Skip if answer is too long (not a real FAQ)
+          if (cleanAnswer.length > MAX_ANSWER_CHARS) {
+            console.warn(`[QnAChunker] Skipping Q&A pair - answer too long (${cleanAnswer.length} chars)`);
+            continue;
+          }
 
           pairs.push({
             question,

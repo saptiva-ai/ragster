@@ -82,6 +82,29 @@ export function normalizeLooseDecimalSafe(text: string): string {
     .replace(/§COMMA§/g, ",");
 }
 
+/**
+ * Sanitize text extracted from documents (PDFs, OCR, etc).
+ * Removes control characters, normalizes unicode, cleans whitespace.
+ * Used for: PDF text extraction before chunking/embedding.
+ *
+ * @example sanitizeExtractedText("Hello\x00World\n\n\nTest") => "Hello World\n\nTest"
+ */
+export function sanitizeExtractedText(text: string): string {
+  return (text ?? "")
+    // Remove null bytes and control characters (except newlines/tabs)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    // Normalize unicode characters (ligatures, width variants)
+    .normalize("NFKC")
+    // Remove format chars (zero-width, BOM)
+    .replace(/\p{Cf}/gu, "")
+    // Replace multiple spaces with single space (keep newlines for structure)
+    .replace(/[^\S\n]+/g, " ")
+    // Replace 3+ newlines with 2 (preserve paragraph breaks)
+    .replace(/\n{3,}/g, "\n\n")
+    // Trim whitespace
+    .trim();
+}
+
 // ================================
 // ALIASES for backward compatibility
 // ================================

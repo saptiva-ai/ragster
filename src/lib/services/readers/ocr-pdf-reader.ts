@@ -2,6 +2,7 @@ import { DocumentReader } from '@/lib/core/interfaces';
 import { ExtractedDocument } from '@/lib/core/types';
 import { SaptivaService } from '../saptiva';
 import { pdfToImages } from '../pdfToImages';
+import { sanitizeExtractedText } from '@/lib/utils/normalize';
 
 /**
  * Progress callback for OCR extraction.
@@ -76,8 +77,11 @@ export class OcrPdfReader implements DocumentReader {
       texts.push(text);
     }
 
+    // Sanitize extracted text to remove problematic characters
+    const cleanContent = sanitizeExtractedText(texts.join('\n\n'));
+
     return {
-      content: texts.join('\n\n'),
+      content: cleanContent,
       metadata: {
         filename: metadata.filename,
         fileType: metadata.fileType,

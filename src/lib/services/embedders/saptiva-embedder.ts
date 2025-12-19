@@ -3,6 +3,9 @@ import { Embedder } from '@/lib/core/interfaces';
 import { EmbeddingResult, EmbeddingOptions } from '@/lib/core/types';
 import { configService } from '../config';
 
+// Max characters for embedding - Saptiva API limit
+const MAX_EMBED_CHARS = 8000;
+
 /**
  * Saptiva API embedder implementation.
  * Uses MRL (Matryoshka Representation Learning) truncation:
@@ -38,26 +41,47 @@ export class SaptivaEmbedder implements Embedder {
    * Internal: fetch full embedding from API.
    */
   private async embedFullInternal(text: string, options?: EmbeddingOptions): Promise<number[]> {
-    const response = await axios.post(
-      this.config.apiUrl,
-      {
-        model: options?.model || this.config.model,
-        prompt: text,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        timeout: 30000,
-      }
-    );
-
-    if (!response.data?.embeddings || !Array.isArray(response.data.embeddings)) {
-      throw new Error('Invalid embedding response format');
+    // Truncate if too long for API
+    let processedText = text;
+    if (text.length > MAX_EMBED_CHARS) {
+      console.warn(`[Embedder] Text too long (${text.length} chars), truncating to ${MAX_EMBED_CHARS}`);
+      processedText = text.slice(0, MAX_EMBED_CHARS);
     }
 
-    return response.data.embeddings;
+    try {
+      const response = await axios.post(
+        this.config.apiUrl,
+        {
+          model: options?.model || this.config.model,
+          prompt: processedText,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          timeout: 30000,
+        }
+      );
+
+      if (!response.data?.embeddings || !Array.isArray(response.data.embeddings)) {
+        throw new Error('Invalid embedding response format');
+      }
+
+      return response.data.embeddings;
+    } catch (error) {
+      // Log details for debugging 500 errors
+      const textPreview = processedText.length > 200 ? processedText.slice(0, 200) + '...' : processedText;
+      console.error(`[Embedder] ❌ API Error:`, {
+        status: (error as {response?: {status?: number}}).response?.status,
+        statusText: (error as {response?: {statusText?: string}}).response?.statusText,
+        responseData: (error as {response?: {data?: unknown}}).response?.data,
+        originalLength: text.length,
+        sentLength: processedText.length,
+        textPreview,
+      });
+      throw error;
+    }
   }
 
   async embedBatch(
