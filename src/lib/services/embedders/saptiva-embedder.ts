@@ -5,12 +5,39 @@ import { configService } from '../config';
 
 /**
  * Saptiva API embedder implementation.
- * Generates embeddings using the Saptiva embedding API.
+ * Uses MRL (Matryoshka Representation Learning) truncation:
+ * - Regular chunks: 512d (faster search, less storage)
+ * - QnA chunks: 1024d (full precision)
  */
 export class SaptivaEmbedder implements Embedder {
   private config = configService.getEmbeddingConfig();
 
+  /**
+   * Get embedding truncated to configured dimensions (512d for regular chunks).
+   * Uses MRL - first N dimensions preserve semantic meaning.
+   */
   async embed(text: string, options?: EmbeddingOptions): Promise<EmbeddingResult> {
+    const fullEmbedding = await this.embedFullInternal(text, options);
+    // MRL truncation: slice to configured dimensions
+    return {
+      embedding: fullEmbedding.slice(0, this.config.dimensions),
+    };
+  }
+
+  /**
+   * Get full embedding without truncation (1024d for QnA chunks).
+   */
+  async embedFull(text: string, options?: EmbeddingOptions): Promise<EmbeddingResult> {
+    const fullEmbedding = await this.embedFullInternal(text, options);
+    return {
+      embedding: fullEmbedding,
+    };
+  }
+
+  /**
+   * Internal: fetch full embedding from API.
+   */
+  private async embedFullInternal(text: string, options?: EmbeddingOptions): Promise<number[]> {
     const response = await axios.post(
       this.config.apiUrl,
       {
@@ -30,9 +57,7 @@ export class SaptivaEmbedder implements Embedder {
       throw new Error('Invalid embedding response format');
     }
 
-    return {
-      embedding: response.data.embeddings,
-    };
+    return response.data.embeddings;
   }
 
   async embedBatch(
@@ -81,8 +106,56 @@ export class SaptivaEmbedder implements Embedder {
     return results;
   }
 
+  /**
+   * Batch embed with full dimensions (for QnA).
+   */
+  async embedBatchFull(
+    texts: string[],
+    options?: EmbeddingOptions,
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<EmbeddingResult[]> {
+    const total = texts.length;
+    const startTime = Date.now();
+    const results: EmbeddingResult[] = [];
+    const BATCH_SIZE = 10;
+    const DELAY_BETWEEN_BATCHES = 100;
+
+    console.log(`[Embedder] Starting QnA batch: ${total} texts (full ${this.config.qnaDimensions}d)`);
+
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+      const batchPromises = batch.map(text => this.embedFull(text, options));
+
+      try {
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        const completed = Math.min(i + BATCH_SIZE, total);
+        if (onProgress) {
+          onProgress(completed, total);
+        }
+
+        if (i + BATCH_SIZE < texts.length) {
+          await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+        }
+      } catch (error) {
+        console.error(`[Embedder] ❌ Failed QnA batch at ${i + 1}:`, error instanceof Error ? error.message : error);
+        throw error;
+      }
+    }
+
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[Embedder] ✅ QnA batch complete: ${total} embeddings in ${totalTime}s`);
+
+    return results;
+  }
+
   getDimensions(): number {
     return this.config.dimensions;
+  }
+
+  getQnADimensions(): number {
+    return this.config.qnaDimensions;
   }
 
   getName(): string {
