@@ -3,7 +3,7 @@ import { QueueJob, UploadJobPayload } from '@/lib/core/types';
 import { readerFactory } from '../readers/reader-factory';
 import { OcrPdfReader } from '../readers/ocr-pdf-reader';
 import { ImageReader } from '../readers/image-reader';
-import { RecursiveChunker } from '../chunkers/recursive-chunker';
+import { QnAChunker } from '../chunkers/qna-chunker';
 import { SaptivaEmbedder } from '../embedders/saptiva-embedder';
 import { weaviateClient } from '../weaviate-client';
 import { connectToDatabase } from '@/lib/mongodb/client';
@@ -194,22 +194,21 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     job.progress = 30;
     this.jobs.set(job.id, job);
 
-    // 2. Chunking - use right chunker for the source type
+    // 2. Chunking - use Q&A-aware chunker (auto-detects FAQ format)
     job.stage = 'chunking';
     job.progress = 35;
     this.jobs.set(job.id, job);
 
-    // ALWAYS use RecursiveChunker - SentenceChunker creates too many tiny chunks
-    // which causes slow embeddings (6676 chunks vs ~500) and noisy retrieval
+    // QnAChunker: Detects FAQ-style documents and keeps Q+A pairs as atomic units
+    // Falls back to RecursiveChunker for non-Q&A content
     //
-    // Config: 1200 chars per chunk, 150 char overlap
-    // Result: ~400-900 chunks for most documents (5-10 min embedding)
-    const chunkerName = 'RecursiveChunker';
+    // Config: 1200 chars per chunk, 150 char overlap (for non-Q&A content)
+    // Q&A pairs: Each Q+A becomes one chunk (may exceed 1200 chars, that's OK)
+    const chunker = new QnAChunker(1200, 150);
+    const chunks = await chunker.chunk(extracted.content, {});
+    const chunkerName = chunker.getName();
 
     console.log(`[Queue] ${job.id}: Chunking with ${chunkerName}...`);
-
-    const chunker = new RecursiveChunker(1200, 150);
-    const chunks = await chunker.chunk(extracted.content, {});
 
     // Check if no content was extracted
     if (chunks.length === 0) {
@@ -231,48 +230,86 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     job.progress = 50;
     this.jobs.set(job.id, job);
 
-    // 4. Embeddings
+    // 4. Split chunks into QnA and regular
+    const qnaChunks: Array<{ chunk: typeof chunks[0]; index: number }> = [];
+    const regularChunks: Array<{ chunk: typeof chunks[0]; index: number }> = [];
+
+    chunks.forEach((chunk, index) => {
+      if (chunk.metadata?.isQAPair) {
+        qnaChunks.push({ chunk, index });
+      } else {
+        regularChunks.push({ chunk, index });
+      }
+    });
+
+    console.log(`[Queue] ${job.id}: Split ${chunks.length} chunks → ${regularChunks.length} regular (512d), ${qnaChunks.length} QnA (1024d)`);
+
+    // 5. Generate embeddings (different dimensions for each type)
     job.stage = 'embedding';
     job.progress = 55;
     job.embeddingProgress = 0;
     job.embeddingTotal = chunks.length;
     this.jobs.set(job.id, job);
-    console.log(`[Queue] ${job.id}: Generating embeddings for ${chunks.length} chunks...`);
 
     const embedder = new SaptivaEmbedder();
-    const embeddings = await embedder.embedBatch(
-      chunks.map(c => c.content),
-      undefined,
-      (completed, total) => {
-        job.embeddingProgress = completed;
-        job.embeddingTotal = total;
-        // Scale progress: 55-80% during embedding
-        job.progress = 55 + Math.round((completed / total) * 25);
-        this.jobs.set(job.id, job);
-      }
-    );
+    const allEmbeddings: Array<{ embedding: number[] }> = new Array(chunks.length);
+
+    // Embed regular chunks (512d - MRL truncated)
+    if (regularChunks.length > 0) {
+      const regularEmbeddings = await embedder.embedBatch(
+        regularChunks.map(c => c.chunk.content),
+        undefined,
+        (completed) => {
+          job.embeddingProgress = completed;
+          job.progress = 55 + Math.round((completed / chunks.length) * 15);
+          this.jobs.set(job.id, job);
+        }
+      );
+      regularChunks.forEach((item, i) => {
+        allEmbeddings[item.index] = regularEmbeddings[i];
+      });
+    }
+
+    // Embed QnA chunks (1024d - full precision)
+    if (qnaChunks.length > 0) {
+      const qnaEmbeddings = await embedder.embedBatchFull(
+        qnaChunks.map(c => c.chunk.content),
+        undefined,
+        (completed) => {
+          job.embeddingProgress = regularChunks.length + completed;
+          job.progress = 70 + Math.round((completed / chunks.length) * 10);
+          this.jobs.set(job.id, job);
+        }
+      );
+      qnaChunks.forEach((item, i) => {
+        allEmbeddings[item.index] = qnaEmbeddings[i];
+      });
+    }
+
     job.progress = 80;
     this.jobs.set(job.id, job);
 
-    // 5. Save to Weaviate (shared collection)
+    // 6. Save to Weaviate (both collections)
     job.stage = 'saving';
     job.progress = 82;
     this.jobs.set(job.id, job);
 
-    await weaviateClient.ensureCollectionExists();
+    await weaviateClient.ensureBothCollectionsExist();
 
-    // Delete existing chunks with same sourceName (replace behavior)
-    const deletedCount = await weaviateClient.deleteByFilter('sourceName', fileName);
-    if (deletedCount > 0) {
-      console.log(`[Queue] ${job.id}: Replaced existing document "${fileName}" (${deletedCount} chunks deleted)`);
-    } else {
-      console.log(`[Queue] ${job.id}: Saving new document "${fileName}"...`);
+    // Delete existing chunks with same sourceName from BOTH collections
+    const [deletedRegular, deletedQnA] = await Promise.all([
+      weaviateClient.deleteByFilter('sourceName', fileName),
+      weaviateClient.deleteByFilterQnA('sourceName', fileName),
+    ]);
+    if (deletedRegular + deletedQnA > 0) {
+      console.log(`[Queue] ${job.id}: Replaced existing "${fileName}" (${deletedRegular} regular + ${deletedQnA} QnA deleted)`);
     }
 
     job.progress = 85;
     this.jobs.set(job.id, job);
 
-    const objects = chunks.map((chunk, index) => ({
+    // Build objects for each collection
+    const buildObject = (chunk: typeof chunks[0], index: number) => ({
       properties: {
         text: chunk.content,
         chunkIndex: index + 1,
@@ -285,16 +322,26 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
         uploadDate: new Date().toISOString(),
         sourceNamespace: namespace,
         userId,
-        language: 'es', // Default to Spanish
+        language: 'es',
         startPosition: chunk.startPosition ?? 0,
         endPosition: chunk.endPosition ?? chunk.content.length,
         contentWithoutOverlap: chunk.contentWithoutOverlap ?? chunk.content,
         chunkerUsed: chunkerName,
+        isQAPair: chunk.metadata?.isQAPair ?? false,
+        questionText: chunk.metadata?.questionText ?? null,
       },
-      vector: embeddings[index].embedding,
-    }));
+      vector: allEmbeddings[index].embedding,
+    });
 
-    await weaviateClient.insertBatch(objects);
+    const regularObjects = regularChunks.map(item => buildObject(item.chunk, item.index));
+    const qnaObjects = qnaChunks.map(item => buildObject(item.chunk, item.index));
+
+    // Insert into respective collections
+    await Promise.all([
+      regularObjects.length > 0 ? weaviateClient.insertBatch(regularObjects) : Promise.resolve(),
+      qnaObjects.length > 0 ? weaviateClient.insertBatchQnA(qnaObjects) : Promise.resolve(),
+    ]);
+
     job.progress = 90;
     this.jobs.set(job.id, job);
 
