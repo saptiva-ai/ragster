@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Ensure shared collection exists in Weaviate
-    const collectionName = await weaviateClient.ensureCollectionExists();
-    console.log(`[Upload] Collection ${collectionName} ready`);
+    // 3. Ensure both collections exist in Weaviate (Documents + DocumentsQnA)
+    const { regular, qna } = await weaviateClient.ensureBothCollectionsExist();
+    console.log(`[Upload] Collections ready: ${regular}, ${qna}`);
 
     // 4. Queue ALL files for background processing (provides progress tracking)
     const { db } = await connectToDatabase();

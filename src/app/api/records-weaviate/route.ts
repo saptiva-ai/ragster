@@ -30,8 +30,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Ensure collection exists and generate embedding
-    await weaviateClient.ensureCollectionExists();
+    // 3. Ensure both collections exist and generate embedding
+    await weaviateClient.ensureBothCollectionsExist();
 
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(text);
