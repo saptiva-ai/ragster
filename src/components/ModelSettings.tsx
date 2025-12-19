@@ -59,7 +59,6 @@ export default function ModelSettings({
   const [promptName, setPromptName] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originalPrompt, setOriginalPrompt] = useState<string>("");
 
   // Cargar configuraciones
   const fetchSettings = useCallback(async () => {
@@ -73,7 +72,6 @@ export default function ModelSettings({
         if (data.success && data.data) {
           loadedSettings = data.data;
           setModelSettings(data.data);
-          setOriginalPrompt(data.data.systemPrompt || ""); // Guardar prompt original
         }
       } else {
         // Fallback a localStorage
@@ -82,7 +80,6 @@ export default function ModelSettings({
           const parsed = JSON.parse(storedSettings);
           loadedSettings = parsed;
           setModelSettings(parsed);
-          setOriginalPrompt(parsed.systemPrompt || ""); // Guardar prompt original
         }
       }
 
@@ -94,7 +91,6 @@ export default function ModelSettings({
           systemPrompt: DEFAULT_MODEL_SETTINGS.systemPrompt,
         };
         setModelSettings(loadedSettings);
-        setOriginalPrompt(loadedSettings.systemPrompt);
       }
 
       // Cargar historial de prompts
@@ -113,7 +109,6 @@ export default function ModelSettings({
             ...prev,
             systemPrompt: lastPrompt.prompt,
           }));
-          setOriginalPrompt(lastPrompt.prompt);
         } else {
           // Si no hay historial válido, inicializar como array vacío
           setPromptHistory([]);
@@ -160,7 +155,6 @@ export default function ModelSettings({
         ...prev,
         systemPrompt: selectedItem.prompt,
       }));
-      setOriginalPrompt(selectedItem.prompt); // Actualizar prompt original
       setSelectedHistoryId(historyId);
       setPromptName("");
     }
@@ -244,7 +238,7 @@ export default function ModelSettings({
     }
   };
 
-  // Guardar configuración del modelo y actualizar historial solo si el prompt cambió
+  // Guardar configuración del modelo y actualizar historial (siempre guarda, reescribe si es duplicado)
   const handleSaveSettings = async () => {
     setIsSaving(true);
     setError(null);
@@ -259,63 +253,65 @@ export default function ModelSettings({
         return;
       }
 
-      // Verificar si el prompt cambió desde la última carga
-      const promptChanged = modelSettings.systemPrompt.trim() !== originalPrompt.trim();
+      // Asegurar que promptHistory es un array
+      const currentHistory = Array.isArray(promptHistory) ? promptHistory : [];
 
-      // Si el prompt cambió, verificar si ya existe en el historial
-      if (promptChanged) {
-        // Asegurar que promptHistory es un array
-        const currentHistory = Array.isArray(promptHistory) ? promptHistory : [];
-        
-        const promptExists = currentHistory.some(
-          (item) => item.prompt.trim() === modelSettings.systemPrompt.trim()
-        );
+      // Buscar si el prompt ya existe en el historial
+      const existingIndex = currentHistory.findIndex(
+        (item) => item.prompt.trim() === modelSettings.systemPrompt.trim()
+      );
 
-        if (promptExists) {
-          const errorMsg = "Este prompt ya existe en el historial. Modifica el contenido antes de guardarlo.";
-          setError(errorMsg);
-          if (onError) onError(errorMsg);
-          setIsSaving(false);
-          return;
-        }
+      let updatedHistory = [...currentHistory];
+      const timestamp = generateTimestampString();
+      const promptNameToUse = promptName.trim()
+        ? `${promptName.trim()} - ${timestamp}`
+        : `Prompt ${timestamp}`;
 
-        // Agregar al historial solo si el prompt cambió y no existe
-        let updatedHistory = [...currentHistory];
-        const timestamp = generateTimestampString();
-        const promptNameToUse = promptName.trim()
-          ? `${promptName.trim()} - ${timestamp}`
-          : `Prompt ${timestamp}`;
+      let newItemId: string;
 
+      if (existingIndex !== -1) {
+        // Si existe, actualizar el existente (reescribir con nueva fecha/nombre)
+        newItemId = currentHistory[existingIndex].id;
+        updatedHistory[existingIndex] = {
+          ...currentHistory[existingIndex],
+          name: promptNameToUse,
+          createdAt: new Date().toISOString(),
+        };
+        // Mover al inicio del array
+        const [updated] = updatedHistory.splice(existingIndex, 1);
+        updatedHistory = [updated, ...updatedHistory];
+      } else {
+        // Si no existe, crear nuevo
+        newItemId = generateId();
         const newHistoryItem: PromptHistoryItem = {
-          id: generateId(),
+          id: newItemId,
           prompt: modelSettings.systemPrompt,
           createdAt: new Date().toISOString(),
           name: promptNameToUse,
         };
-
         updatedHistory = [newHistoryItem, ...updatedHistory].slice(0, 20);
-        setPromptHistory(updatedHistory);
-        setPromptName("");
+      }
 
-        // Guardar historial en la API con manejo de errores
-        try {
-          const historyResponse = await fetch("/api/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              key: "promptHistory",
-              data: updatedHistory,
-            }),
-          });
+      setPromptHistory(updatedHistory);
+      setSelectedHistoryId(newItemId);
+      setPromptName("");
 
-          if (!historyResponse.ok) {
-            console.error("Error al guardar historial, pero continuando con la configuración");
-            // No lanzar error aquí, solo loguear, para que pueda guardar la configuración
-          }
-        } catch (historyError) {
-          console.error("Error al guardar historial:", historyError);
-          // No lanzar error aquí, solo loguear, para que pueda guardar la configuración
+      // Guardar historial en la API
+      try {
+        const historyResponse = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: "promptHistory",
+            data: updatedHistory,
+          }),
+        });
+
+        if (!historyResponse.ok) {
+          console.error("Error al guardar historial, pero continuando con la configuración");
         }
+      } catch (historyError) {
+        console.error("Error al guardar historial:", historyError);
       }
 
       // Guardar configuración del modelo (siempre, incluso si solo cambió modelo/temperatura)
@@ -332,9 +328,6 @@ export default function ModelSettings({
         const error = await response.json();
         throw new Error(error.error || "Error al guardar en la API");
       }
-
-      // Actualizar el prompt original después de guardar
-      setOriginalPrompt(modelSettings.systemPrompt);
 
       // Guardar en localStorage como fallback
       localStorage.setItem("modelSettings", JSON.stringify(modelSettings));
