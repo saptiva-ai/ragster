@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import clientPromise from "@/lib/mongodb";
 import {compare} from "bcryptjs";
-import { configService } from "@/lib/services/config";
+import { connectToDatabase } from "@/lib/mongodb/client";
 
 // Declaración de los tipos adicionales para la sesión y el usuario en NextAuth
 declare module "next-auth" {
@@ -39,9 +39,8 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Correo y contraseña requeridos");
         }
 
-        // Conectar a la base de datos
-        const client = await clientPromise;
-        const db = client.db(configService.getMongoDBConfig().dbName); 
+        // Conectar a la base de datos (uses resolved DB name)
+        const { db } = await connectToDatabase();
         const user = await db
           .collection("users")
           .findOne({email: credentials.email});
