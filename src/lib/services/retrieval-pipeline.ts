@@ -1,13 +1,15 @@
 // RETRIEVAL PIPELINE
 //
 // Steps after Weaviate search:
-// 1. THRESHOLD → Remove chunks scoring < 0.3 (noise)
-// 2. SOURCE BOOST → Favor documents with multiple matching chunks
-// 3. EXPAND → Walk prev/next chain for complete context
+// 1. CANDIDATE CUT → Keep top N + within delta of best score
+// 2. MMR DIVERSITY → Reduce redundant chunks (λ=0.6)
+// 3. SOURCE BOOST → Favor documents with multiple matching chunks
+// 4. EXPAND → Walk prev/next chain for complete context
 
 import { weaviateClient } from "./weaviate-client";
 import { RetrievalHit } from "@/lib/core/types";
 import { configService } from "./config";
+import { debug } from "@/lib/utils/debug";
 
 // Re-export for backward compatibility
 export type { RetrievalHit } from "@/lib/core/types";
@@ -81,26 +83,159 @@ function getDefaultRetrievalConfig(): RetrievalConfig {
 export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = getDefaultRetrievalConfig();
 
 
-// A2: SIMILARITY THRESHOLD FILTER
+// A2: CANDIDATE BUDGET + RELATIVE CUT
+//
+// Instead of absolute threshold (unstable across queries), use:
+// 1. Fixed candidate budget (topN)
+// 2. Relative cut (keep anything within delta of top1 score)
+
+export interface CandidateCutConfig {
+  topN: number;           // Keep at least top N results
+  deltaToTop1: number;    // Keep any chunk within this delta of top1 score
+}
+
+const DEFAULT_CUT_CONFIG: CandidateCutConfig = {
+  topN: 30,  // Keep ~30 for MMR to filter down to 15
+  deltaToTop1: 0.08,
+};
 
 /**
- * Filter results below similarity threshold.
- * Removes low-quality results before they pollute context.
+ * Filter results using candidate budget + relative cut.
+ * More stable than absolute threshold.
  */
-export function filterByThreshold(
+export function filterByCandidateBudget(
   results: RetrievalHit[],
-  threshold: number
+  config: Partial<CandidateCutConfig> = {}
 ): RetrievalHit[] {
-  const filtered = results.filter(r => (r.score ?? 0) >= threshold);
+  if (results.length === 0) return results;
+
+  const { topN, deltaToTop1 } = { ...DEFAULT_CUT_CONFIG, ...config };
+
+  // Sort by score descending
+  const sorted = [...results].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  const top1Score = sorted[0]?.score ?? 0;
+  const cutoffScore = top1Score - deltaToTop1;
+
+  // Keep: top N OR within delta of top1
+  const filtered = sorted.filter((r, i) => {
+    const score = r.score ?? 0;
+    return i < topN || score >= cutoffScore;
+  });
 
   const removed = results.length - filtered.length;
   if (removed > 0) {
-    console.log(`[A2:Threshold] Filtered ${removed} results below ${threshold}`);
+    console.log(`[A2:CandidateCut] Kept ${filtered.length}/${results.length} (topN=${topN}, delta=${deltaToTop1}, cutoff=${cutoffScore.toFixed(3)})`);
   }
 
   return filtered;
 }
 
+// MMR: MAXIMAL MARGINAL RELEVANCE
+// Reduces redundancy by penalizing chunks similar to already-selected ones
+// Formula: MMR(i) = λ * relevance(i) - (1-λ) * max_similarity_to_selected
+
+export interface MMRConfig {
+  enabled: boolean;
+  lambda: number;     // 0-1: higher = more relevance, lower = more diversity
+  targetK: number;    // Number of diverse results to select
+}
+
+/**
+ * Simple text similarity using Jaccard coefficient on word sets.
+ * Fast, no model needed - good enough for diversity detection.
+ */
+function textSimilarity(text1: string, text2: string): number {
+  const words1 = new Set(text1.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+  const words2 = new Set(text2.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+
+  if (words1.size === 0 || words2.size === 0) return 0;
+
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+
+  return intersection.size / union.size;
+}
+
+/**
+ * Apply Maximal Marginal Relevance to reduce redundancy.
+ * Iteratively selects chunks that balance relevance with diversity.
+ */
+export function applyMMR(
+  results: RetrievalHit[],
+  config?: Partial<MMRConfig>
+): RetrievalHit[] {
+  const mmrConfig = configService.getMMRConfig();
+  const cfg = { ...mmrConfig, ...config };
+
+  debug.mmr.log(`Starting MMR: ${results.length} candidates, targetK=${cfg.targetK}, λ=${cfg.lambda}`);
+
+  if (!cfg.enabled) {
+    debug.mmr.log("MMR disabled, returning all results");
+    return results;
+  }
+
+  if (results.length <= cfg.targetK) {
+    debug.mmr.log(`Only ${results.length} results, no filtering needed`);
+    return results;
+  }
+
+  const selected: RetrievalHit[] = [];
+  const candidates = [...results];
+  const selectedTexts: string[] = [];
+
+  while (selected.length < cfg.targetK && candidates.length > 0) {
+    let bestIdx = 0;
+    let bestMMRScore = -Infinity;
+    let bestMaxSim = 0;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      const relevance = candidate.score ?? 0;
+      const candidateText = String(candidate.properties.text || '');
+
+      // Max similarity to any already-selected chunk
+      const maxSim = selectedTexts.length === 0
+        ? 0
+        : Math.max(...selectedTexts.map(t => textSimilarity(t, candidateText)));
+
+      // MMR score: balance relevance vs diversity
+      const mmrScore = cfg.lambda * relevance - (1 - cfg.lambda) * maxSim;
+
+      if (mmrScore > bestMMRScore) {
+        bestMMRScore = mmrScore;
+        bestMaxSim = maxSim;
+        bestIdx = i;
+      }
+    }
+
+    // Select the best candidate
+    const chosen = candidates.splice(bestIdx, 1)[0];
+    selected.push(chosen);
+    selectedTexts.push(String(chosen.properties.text || ''));
+
+    // Debug: show each selection
+    const chunkId = `${chosen.properties.sourceName}:${chosen.properties.chunkIndex}`;
+    const textPreview = String(chosen.properties.text || '').slice(0, 50).replace(/\n/g, ' ');
+    debug.mmr.log(`#${selected.length} Selected: ${chunkId}`, {
+      relevance: (chosen.score ?? 0).toFixed(3),
+      maxSimilarity: bestMaxSim.toFixed(3),
+      mmrScore: bestMMRScore.toFixed(3),
+      preview: textPreview + '...'
+    });
+  }
+
+  // Summary log (always shown)
+  console.log(`[MMR] Selected ${selected.length}/${results.length} diverse chunks (λ=${cfg.lambda})`);
+
+  // Debug: show removed chunks (high similarity)
+  const removedCount = results.length - selected.length;
+  if (removedCount > 0) {
+    debug.mmr.log(`Removed ${removedCount} redundant chunks`);
+  }
+
+  return selected;
+}
 
 // STEP 5: CONTEXT EXPANSION
 //
@@ -140,7 +275,9 @@ function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
 
 export async function expandContext(
   results: RetrievalHit[],
-  config: Partial<ExpansionConfig> = {}
+  config: Partial<ExpansionConfig> = {},
+  /** When true (failure-expansion), use all results as seeds regardless of score */
+  forceExpandAll: boolean = false
 ): Promise<RetrievalHit[]> {
   if (results.length === 0) return results;
 
@@ -155,8 +292,11 @@ export async function expandContext(
   const range = maxScore - minScore || 1;
   const normalize = (s: number) => (s - minScore) / range;
 
-  // Only expand from chunks above threshold
-  const seeds = results.filter(r => normalize(r.score ?? 0) >= cfg.scoreThreshold);
+  // Seed selection: if forceExpandAll (failure-expansion), use all results as seeds
+  // Otherwise, only expand from chunks above threshold
+  const seeds = forceExpandAll
+    ? results
+    : results.filter(r => normalize(r.score ?? 0) >= cfg.scoreThreshold);
 
   if (seeds.length === 0) {
     console.log(`[Expand] No chunks above threshold ${cfg.scoreThreshold}`);
@@ -174,14 +314,28 @@ export async function expandContext(
       if (!frontier.has(chunkId(chunk))) continue;
 
       const source = String(chunk.properties.sourceName);
-      const prev = chunk.properties.prevChunkIndex as number | undefined;
-      const next = chunk.properties.nextChunkIndex as number | undefined;
 
-      if (prev != null && prev >= 0 && !seen.has(`${source}-${prev}`)) {
-        toFetch.push({ source, index: prev });
+      // Type-safe index parsing (handles string or number from ingestion)
+      const currentIdx = Number(chunk.properties.chunkIndex);
+      const prevIdx = chunk.properties.prevChunkIndex == null ? null : Number(chunk.properties.prevChunkIndex);
+      const nextIdx = chunk.properties.nextChunkIndex == null ? null : Number(chunk.properties.nextChunkIndex);
+
+      // Skip if current index is invalid
+      if (!Number.isInteger(currentIdx)) continue;
+
+      // GUARD: Adjacency sanity check - only walk if truly adjacent (diff === 1)
+      // Prevents walking across section gaps or corrupted index data
+      if (prevIdx != null && Number.isInteger(prevIdx) && prevIdx >= 0 && !seen.has(`${source}-${prevIdx}`)) {
+        const isAdjacent = Math.abs(prevIdx - currentIdx) === 1;
+        if (isAdjacent) {
+          toFetch.push({ source, index: prevIdx });
+        }
       }
-      if (next != null && next >= 0 && !seen.has(`${source}-${next}`)) {
-        toFetch.push({ source, index: next });
+      if (nextIdx != null && Number.isInteger(nextIdx) && nextIdx >= 0 && !seen.has(`${source}-${nextIdx}`)) {
+        const isAdjacent = Math.abs(nextIdx - currentIdx) === 1;
+        if (isAdjacent) {
+          toFetch.push({ source, index: nextIdx });
+        }
       }
     }
 
@@ -333,77 +487,39 @@ export class RetrievalPipeline {
    */
   async execute(
     query: string,
-    embedding: number[],
-    useAutocut: boolean = true
+    embedding: number[]
   ): Promise<PipelineResult> {
     const fetchCount = this.config.targetChunks * this.config.overFetchMultiplier;
 
-    // Step 1: Fetch candidates
-    let results: RetrievalHit[];
-
-    if (useAutocut) {
-      results = await weaviateClient.searchHybridAutocut(
-        query,
-        embedding,
-        this.config.autocutSensitivity,
-        this.config.alpha
-      );
-
-      // If autocut returned too few, supplement with regular search
-      if (results.length < fetchCount) {
-        const supplemental = await weaviateClient.searchHybrid(
-          query,
-          embedding,
-          fetchCount,
-          this.config.alpha
-        );
-
-        // Merge, avoiding duplicates
-        const existingIds = new Set(
-          results.map(r => `${r.properties.sourceName}-${r.properties.chunkIndex}`)
-        );
-
-        for (const r of supplemental) {
-          const id = `${r.properties.sourceName}-${r.properties.chunkIndex}`;
-          if (!existingIds.has(id)) {
-            results.push(r);
-            existingIds.add(id);
-          }
-        }
-      }
-    } else {
-      results = await weaviateClient.searchHybrid(
-        query,
-        embedding,
-        fetchCount,
-        this.config.alpha
-      );
-    }
+    // Step 1: Fetch candidates from BOTH collections (Documents 512d + DocumentsQnA 1024d)
+    // embedding should be full 1024d - searchHybridBoth truncates for regular collection
+    let results = await weaviateClient.searchHybridBoth(
+      query,
+      embedding,
+      fetchCount,
+      this.config.alpha
+    );
 
     const initialCount = results.length;
-    console.log(`[A1:Search] Fetched ${initialCount} candidates`);
+    console.log(`[A1:Search] Fetched ${initialCount} candidates (both collections)`);
 
-    // Step 2: Filter by threshold (A2)
-    results = filterByThreshold(results, this.config.minSimilarityThreshold);
+    // Step 2: Candidate budget + relative cut (replaces absolute threshold)
+    // topN=30 keeps ~30 candidates for MMR to filter down to 15
+    results = filterByCandidateBudget(results);
     const afterThreshold = results.length;
-    const afterRerank = afterThreshold;
+
+    // Step 3: MMR diversity - reduce redundant chunks before reranking
+    results = applyMMR(results);
+    const afterMMR = results.length;
 
     // Apply source boost
     if (this.config.enableSourceBoost) {
       results = applySourceBoost(results, this.config);
     }
 
-    // Step 6: Expand context (walk adjacent chunks)
-    let afterExpansion = results.length;
-    if (this.config.enableExpansion) {
-      results = await expandContext(results, {
-        budgetChars: this.config.expansionBudgetChars,
-        maxSteps: this.config.expansionMaxSteps,
-        scoreThreshold: this.config.expansionScoreThreshold,
-      });
-      afterExpansion = results.length;
-      console.log(`[Expand] Final: ${afterExpansion} chunks`);
-    }
+    // NOTE: Expansion moved to AFTER reranker in route.ts
+    // Only expand if reranker returns <2 entailments, then rerank again
+    const afterExpansion = results.length;
 
     // Count unique sources
     const sourcesFound = new Set(
@@ -415,7 +531,7 @@ export class RetrievalPipeline {
       stats: {
         initialCount,
         afterThreshold,
-        afterRerank,
+        afterRerank: afterMMR,  // MMR replaces rerank at this stage
         afterExpansion,
         sourcesFound,
       },

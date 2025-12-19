@@ -3,11 +3,12 @@ import { configService } from "./config";
 import { WeaviateSearchResult, ChunkResult, StoredObject } from "@/lib/core/types";
 
 /**
- * Shared collection name for all documents.
- * All users share a single document pool.
- * Configurable via WEAVIATE_COLLECTION_NAME env var.
+ * Collection names for documents.
+ * Regular chunks use 512d embeddings (MRL truncated for speed).
+ * QnA chunks use 1024d embeddings (full precision).
  */
 const COLLECTION_NAME = configService.getWeaviateConfig().collectionName;
+const QNA_COLLECTION_NAME = configService.getWeaviateConfig().qnaCollectionName;
 
 /**
  * Global reference for Weaviate client to survive Next.js hot reloads.
@@ -154,6 +155,9 @@ async function ensureCollectionExists(): Promise<string> {
           { name: "endPosition", dataType: ["int"] },
           { name: "contentWithoutOverlap", dataType: ["text"] },
           { name: "chunkerUsed", dataType: ["text"] },
+          // Q&A chunking metadata
+          { name: "isQAPair", dataType: ["boolean"] },
+          { name: "questionText", dataType: ["text"] },
         ],
       })
       .do();
@@ -162,6 +166,64 @@ async function ensureCollectionExists(): Promise<string> {
   }
 
   return className;
+}
+
+/**
+ * Ensure the QnA collection exists in Weaviate.
+ * Uses same schema as Documents but separate collection for 1024d embeddings.
+ */
+async function ensureQnACollectionExists(): Promise<string> {
+  const client = getClient();
+  const className = QNA_COLLECTION_NAME;
+
+  const schema = await client.schema.getter().do();
+  const exists = schema.classes?.some((c) => c.class === className);
+
+  if (!exists) {
+    console.log(`[Weaviate] Creating QnA class ${className}...`);
+
+    await client.schema
+      .classCreator()
+      .withClass({
+        class: className,
+        properties: [
+          { name: "text", dataType: ["text"] },
+          { name: "sourceName", dataType: ["text"] },
+          { name: "sourceType", dataType: ["text"] },
+          { name: "sourceSize", dataType: ["text"] },
+          { name: "uploadDate", dataType: ["text"] },
+          { name: "chunkIndex", dataType: ["int"] },
+          { name: "totalChunks", dataType: ["int"] },
+          { name: "sourceNamespace", dataType: ["text"] },
+          { name: "prevChunkIndex", dataType: ["int"] },
+          { name: "nextChunkIndex", dataType: ["int"] },
+          { name: "userId", dataType: ["text"] },
+          { name: "language", dataType: ["text"] },
+          { name: "startPosition", dataType: ["int"] },
+          { name: "endPosition", dataType: ["int"] },
+          { name: "contentWithoutOverlap", dataType: ["text"] },
+          { name: "chunkerUsed", dataType: ["text"] },
+          { name: "isQAPair", dataType: ["boolean"] },
+          { name: "questionText", dataType: ["text"] },
+        ],
+      })
+      .do();
+
+    console.log(`[Weaviate] QnA class ${className} created.`);
+  }
+
+  return className;
+}
+
+/**
+ * Ensure both collections exist.
+ */
+async function ensureBothCollectionsExist(): Promise<{ regular: string; qna: string }> {
+  const [regular, qna] = await Promise.all([
+    ensureCollectionExists(),
+    ensureQnACollectionExists(),
+  ]);
+  return { regular, qna };
 }
 
 /**
@@ -192,6 +254,47 @@ async function insertBatch(
 ): Promise<void> {
   const client = getClient();
   const className = COLLECTION_NAME;
+  const batcher = client.batch.objectsBatcher();
+
+  for (const obj of objects) {
+    batcher.withObject({
+      class: className,
+      properties: obj.properties,
+      vector: obj.vector,
+    });
+  }
+
+  await batcher.do();
+}
+
+/**
+ * Insert a single object into the QnA collection.
+ */
+async function insertObjectQnA(
+  properties: Record<string, unknown>,
+  vector: number[]
+): Promise<string | undefined> {
+  const client = getClient();
+  const className = QNA_COLLECTION_NAME;
+
+  const result = await client.data
+    .creator()
+    .withClassName(className)
+    .withProperties(properties)
+    .withVector(vector)
+    .do();
+
+  return result?.id;
+}
+
+/**
+ * Insert multiple objects into the QnA collection (batch).
+ */
+async function insertBatchQnA(
+  objects: Array<{ properties: Record<string, unknown>; vector: number[] }>
+): Promise<void> {
+  const client = getClient();
+  const className = QNA_COLLECTION_NAME;
   const batcher = client.batch.objectsBatcher();
 
   for (const obj of objects) {
@@ -239,8 +342,14 @@ async function searchByVector(
 // alpha=0.35 → 35% vector, 65% BM25 (for numeric/exact queries)
 // PROBLEM SOLVED: Pure vector misses exact matches, pure BM25 misses meaning
 
-// Field boosting for BM25: sourceName (title) matches score higher than content
-const BM25_PROPERTIES = ["sourceName^3", "text"];
+// BM25 on contentWithoutOverlap (no overlap) + text fallback
+// Reduces duplicate-phrase inflation from overlapping chunks
+// Documents collection doesn't have questionText - only search on existing fields
+const BM25_PROPERTIES_BOOSTED = ["contentWithoutOverlap^2", "text"];
+const BM25_PROPERTIES_FALLBACK = ["contentWithoutOverlap", "text"];
+// QnA collection has questionText - boost it heavily for Q&A matches
+const BM25_PROPERTIES_QNA_BOOSTED = ["questionText^4", "contentWithoutOverlap^2", "text"];
+const BM25_PROPERTIES_QNA_FALLBACK = ["questionText", "contentWithoutOverlap", "text"];
 
 async function searchHybrid(
   query: string,
@@ -252,21 +361,32 @@ async function searchHybrid(
   const client = getClient();
   const className = COLLECTION_NAME;
 
-  // Include explainScore for debugging (only logged when DEBUG_RAG=true)
-  // Also request distance as fallback if score is missing
-  const result = await client.graphql
-    .get()
-    .withClassName(className)
-    .withFields(`${fields} _additional { score explainScore distance }`)
-    .withHybrid({
-      query,
-      vector,
-      alpha,
-      properties: BM25_PROPERTIES,
-      fusionType: FusionType.relativeScoreFusion,
-    })
-    .withLimit(limit)
-    .do();
+  // Helper to run hybrid search with given BM25 properties
+  const runHybrid = async (props: string[]) => {
+    return client.graphql
+      .get()
+      .withClassName(className)
+      .withFields(`${fields} _additional { score explainScore distance }`)
+      .withHybrid({
+        query,
+        vector,
+        alpha,
+        properties: props,
+        fusionType: FusionType.relativeScoreFusion,
+      })
+      .withLimit(limit)
+      .do();
+  };
+
+  // Try boosted syntax first, fallback if client doesn't support ^boost
+  let result;
+  try {
+    result = await runHybrid(BM25_PROPERTIES_BOOSTED);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[Hybrid] BM25 boost syntax failed, retrying without ^boost:", msg);
+    result = await runHybrid(BM25_PROPERTIES_FALLBACK);
+  }
 
   const objects = result?.data?.Get?.[className] ?? [];
 
@@ -295,8 +415,8 @@ async function searchHybrid(
     }
 
     // Remove _additional from properties to avoid duplication
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _additional, ...cleanProps } = obj;
-    void _additional; // silence ESLint unused var warning
 
     return {
       properties: cleanProps,
@@ -327,19 +447,32 @@ async function searchHybridAutocut(
   const client = getClient();
   const className = COLLECTION_NAME;
 
-  const result = await client.graphql
-    .get()
-    .withClassName(className)
-    .withFields(`${fields} _additional { score explainScore distance }`)
-    .withHybrid({
-      query,
-      vector,
-      alpha,
-      properties: BM25_PROPERTIES,
-      fusionType: FusionType.relativeScoreFusion,
-    })
-    .withAutocut(autoLimit)
-    .do();
+  // Helper to run autocut hybrid search with given BM25 properties
+  const runHybridAutocut = async (props: string[]) => {
+    return client.graphql
+      .get()
+      .withClassName(className)
+      .withFields(`${fields} _additional { score explainScore distance }`)
+      .withHybrid({
+        query,
+        vector,
+        alpha,
+        properties: props,
+        fusionType: FusionType.relativeScoreFusion,
+      })
+      .withAutocut(autoLimit)
+      .do();
+  };
+
+  // Try boosted syntax first, fallback if client doesn't support ^boost
+  let result;
+  try {
+    result = await runHybridAutocut(BM25_PROPERTIES_BOOSTED);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[HybridAutocut] BM25 boost syntax failed, retrying without ^boost:", msg);
+    result = await runHybridAutocut(BM25_PROPERTIES_FALLBACK);
+  }
 
   const objects = result?.data?.Get?.[className] ?? [];
   console.log(`[Autocut] Returned ${objects.length} results (sensitivity=${autoLimit}, alpha=${alpha})`);
@@ -359,8 +492,113 @@ async function searchHybridAutocut(
           ? Math.max(0, 1 - distNum)
           : undefined;
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _additional, ...cleanProps } = obj;
-    void _additional;
+
+    return {
+      properties: cleanProps,
+      score: fallbackScore,
+      explainScore: additional?.explainScore as string | undefined,
+    };
+  });
+}
+
+/**
+ * Hybrid search across BOTH collections (Documents + DocumentsQnA).
+ * Takes full 1024d vector, truncates to 512d for regular collection.
+ * Merges results by score, marking QnA results.
+ */
+// Base fields for Documents collection (no Q&A fields)
+const DOCUMENT_FIELDS = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex";
+// Extended fields for QnA collection (includes Q&A metadata)
+const QNA_FIELDS = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex isQAPair questionText";
+
+async function searchHybridBoth(
+  query: string,
+  vectorFull: number[],
+  limit: number = 25,
+  alpha: number = 0.75,
+  fields: string = DOCUMENT_FIELDS
+): Promise<WeaviateSearchResult[]> {
+  const embeddingConfig = configService.getEmbeddingConfig();
+  const truncatedDims = embeddingConfig.dimensions;
+
+  // Truncate vector for regular collection (MRL)
+  const vectorTruncated = vectorFull.slice(0, truncatedDims);
+
+  // Search both collections in parallel - use appropriate fields for each
+  const [regularResults, qnaResults] = await Promise.all([
+    searchHybridInCollection(COLLECTION_NAME, query, vectorTruncated, limit, alpha, fields),
+    searchHybridInCollection(QNA_COLLECTION_NAME, query, vectorFull, limit, alpha, QNA_FIELDS),
+  ]);
+
+  // Merge and sort by score
+  const combined = [...regularResults, ...qnaResults];
+  combined.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  // Return top N
+  return combined.slice(0, limit);
+}
+
+/**
+ * Helper: Hybrid search in a specific collection.
+ */
+async function searchHybridInCollection(
+  className: string,
+  query: string,
+  vector: number[],
+  limit: number,
+  alpha: number,
+  fields: string
+): Promise<WeaviateSearchResult[]> {
+  const client = getClient();
+
+  const runHybrid = async (props: string[]) => {
+    return client.graphql
+      .get()
+      .withClassName(className)
+      .withFields(`${fields} _additional { score explainScore distance }`)
+      .withHybrid({
+        query,
+        vector,
+        alpha,
+        properties: props,
+        fusionType: FusionType.relativeScoreFusion,
+      })
+      .withLimit(limit)
+      .do();
+  };
+
+  // Use QnA-specific BM25 properties for QnA collection
+  const isQnACollection = className === QNA_COLLECTION_NAME;
+  const boostedProps = isQnACollection ? BM25_PROPERTIES_QNA_BOOSTED : BM25_PROPERTIES_BOOSTED;
+  const fallbackProps = isQnACollection ? BM25_PROPERTIES_QNA_FALLBACK : BM25_PROPERTIES_FALLBACK;
+
+  let result;
+  try {
+    result = await runHybrid(boostedProps);
+  } catch {
+    result = await runHybrid(fallbackProps);
+  }
+
+  const objects = result?.data?.Get?.[className] ?? [];
+
+  return objects.map((obj: Record<string, unknown>) => {
+    const additional = obj._additional as Record<string, unknown> | undefined;
+    const rawScore = additional?.score;
+    const scoreNum = rawScore != null ? Number(rawScore) : undefined;
+    const rawDistance = additional?.distance;
+    const distNum = rawDistance != null ? Number(rawDistance) : undefined;
+
+    const fallbackScore =
+      typeof scoreNum === "number" && Number.isFinite(scoreNum)
+        ? scoreNum
+        : typeof distNum === "number" && Number.isFinite(distNum)
+          ? Math.max(0, 1 - distNum)
+          : undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _additional, ...cleanProps } = obj;
 
     return {
       properties: cleanProps,
@@ -520,6 +758,56 @@ async function getChunksByIds(
 }
 
 /**
+ * Get chunks by sourceName + chunkIndex pairs.
+ * Used for ordered expansion (fetching next chunks in sequence).
+ */
+async function getChunksBySourceAndIndex(
+  requests: Array<{ sourceName: string; chunkIndex: number }>,
+  fields: string = "text sourceName chunkIndex totalChunks contentWithoutOverlap prevChunkIndex nextChunkIndex"
+): Promise<ChunkResult[]> {
+  const client = getClient();
+  const className = COLLECTION_NAME;
+
+  if (requests.length === 0) return [];
+
+  const results: ChunkResult[] = [];
+
+  // Fetch each chunk (could batch with OR filter, but this is safer)
+  for (const req of requests) {
+    try {
+      const result = await client.graphql
+        .get()
+        .withClassName(className)
+        .withFields(fields)
+        .withWhere({
+          operator: "And",
+          operands: [
+            { path: ["sourceName"], operator: "Equal", valueText: req.sourceName },
+            { path: ["chunkIndex"], operator: "Equal", valueInt: req.chunkIndex },
+          ],
+        })
+        .withLimit(1)
+        .do();
+
+      const objects = result?.data?.Get?.[className] ?? [];
+      if (objects.length > 0) {
+        results.push({ properties: objects[0] });
+      }
+    } catch (error) {
+      console.warn(`[Weaviate] Failed to fetch ${req.sourceName}:${req.chunkIndex}:`, error);
+    }
+  }
+
+  // Sort by sourceName then chunkIndex
+  return results.sort((a, b) => {
+    const srcA = String(a.properties.sourceName ?? '');
+    const srcB = String(b.properties.sourceName ?? '');
+    if (srcA !== srcB) return srcA.localeCompare(srcB);
+    return (a.properties.chunkIndex as number) - (b.properties.chunkIndex as number);
+  });
+}
+
+/**
  * Delete the entire shared collection.
  * WARNING: This deletes ALL documents for ALL users!
  */
@@ -537,8 +825,40 @@ async function deleteCollection(): Promise<void> {
 }
 
 /**
+ * Delete objects from QnA collection by filter.
+ */
+async function deleteByFilterQnA(
+  filterPath: string,
+  filterValue: string
+): Promise<number> {
+  const client = getClient();
+  const className = QNA_COLLECTION_NAME;
+
+  try {
+    const result = await client.batch
+      .objectsBatchDeleter()
+      .withClassName(className)
+      .withWhere({
+        path: [filterPath],
+        operator: "Equal",
+        valueText: filterValue,
+      })
+      .do();
+
+    const deletedCount = result?.results?.successful ?? 0;
+    console.log(
+      `[Weaviate] Deleted ${deletedCount} QnA objects where ${filterPath}="${filterValue}"`
+    );
+    return deletedCount;
+  } catch (error) {
+    console.error(`[Weaviate] Error deleting QnA by filter:`, error);
+    throw error;
+  }
+}
+
+/**
  * Weaviate client service object.
- * All users share a single Documents collection.
+ * Two collections: Documents (512d) and DocumentsQnA (1024d).
  * Supports both local (Docker) and cloud (WCS) modes via WEAVIATE_CLOUD env var.
  */
 export const weaviateClient = {
@@ -546,15 +866,22 @@ export const weaviateClient = {
   verifyConnection,
   getCollectionName,
   ensureCollectionExists,
+  ensureQnACollectionExists,
+  ensureBothCollectionsExist,
   insertObject,
   insertBatch,
+  insertObjectQnA,
+  insertBatchQnA,
   searchByVector,
   searchHybrid,
   searchHybridAutocut,
+  searchHybridBoth,
   getChunksByIds,
+  getChunksBySourceAndIndex,
   getAllObjects,
   updateObject,
   deleteObject,
   deleteByFilter,
+  deleteByFilterQnA,
   deleteCollection,
 };

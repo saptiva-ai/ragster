@@ -10,6 +10,8 @@
 //   // config: { alpha, fusionType }
 //   // debug: { normalized, scores } - for logging/tuning
 
+import { normalize } from '@/lib/utils/normalize';
+
 // ================================
 // 1) INTENT (pure detection)
 // ================================
@@ -42,20 +44,7 @@ export function getHybridConfig(type: QuestionType): HybridConfig {
 }
 
 // ================================
-// 3) NORMALIZATION (do once)
-// ================================
-export function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ") // remove punctuation
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// ================================
-// 4) RULES (data-driven + scored)
+// 3) RULES (data-driven + scored)
 // ================================
 type Pattern = { re: RegExp; weight?: number; name?: string };
 type Rule = { type: QuestionType; priority: number; patterns: Pattern[] };
@@ -184,4 +173,129 @@ export function classifyAndGetConfig(query: string): {
 } {
   const { type, debug } = classifyQuestionWithDebug(query);
   return { type, config: getHybridConfig(type), debug };
+}
+
+// ================================
+// 7) LIST STRUCTURE + COUNT MISMATCH (LANGUAGE-AGNOSTIC)
+// ================================
+
+export function detectListStructure(text: string): {
+  isList: boolean;
+  itemCount: number;
+  patterns: string[];
+  listStart: number | null;
+} {
+  const patterns: string[] = [];
+  let itemCount = 0;
+
+  // 1) Bullets
+  const bulletRe = /^[\s]*[-•*◦▪►]\s+.+/gm;
+  const bulletMatches = text.match(bulletRe) || [];
+  if (bulletMatches.length >= 2) {
+    patterns.push("bullets");
+    itemCount = Math.max(itemCount, bulletMatches.length);
+  }
+
+  // 2) Numbered/lettered/roman lists
+  const numberedRe = /^[\s]*(?:\d+|[a-z]|[ivxlcdm]+)[.)\-:]\s+.+/gim;
+  const numberedMatches = text.match(numberedRe) || [];
+  if (numberedMatches.length >= 2) {
+    patterns.push("numbered");
+    itemCount = Math.max(itemCount, numberedMatches.length);
+  }
+
+  // 3) Domain codes (strong): EC0110.02, EC1254, etc (avoid NOM 247 false hits)
+  const ecCodeRe = /\bEC\d{3,4}(?:\.\d{1,3})?\b/g;
+  const ecCodes = text.match(ecCodeRe) || [];
+  const uniqueEc = new Set(ecCodes);
+  if (uniqueEc.size >= 2) {
+    patterns.push("codes");
+    itemCount = Math.max(itemCount, uniqueEc.size);
+  }
+
+  // Find listStart = earliest occurrence of a "strong list line"
+  const strongLineRe = /(^[\s]*[-•*◦▪►]\s+.+)|(^[\s]*(?:\d+|[a-z]|[ivxlcdm]+)[.)\-:]\s+.+)|(^[\s]*EC\d{3,4}(?:\.\d{1,3})?\b)/gim;
+  const m = strongLineRe.exec(text);
+  const listStart = m ? (m.index ?? null) : null;
+
+  return {
+    isList: patterns.length > 0,
+    itemCount,
+    patterns,
+    listStart,
+  };
+}
+
+/**
+ * Detects "declared total" vs visible list items WITHOUT keywords.
+ * Heuristic: take the last standalone integer (3..100) within ~220 chars BEFORE listStart.
+ * Hardened against: percentages (66%), phone prefixes (55...), decimals (.78)
+ */
+export function detectCountMismatch(text: string): {
+  hasMismatch: boolean;
+  declaredTotal: number | null;
+  visibleItems: number;
+  debug: { listStart: number | null; patterns: string[]; windowText: string };
+} {
+  const info = detectListStructure(text);
+  const visibleItems = info.itemCount;
+
+  // If we don't even see list structure, don't claim mismatch
+  if (!info.isList || info.listStart === null || visibleItems < 3) {
+    return {
+      hasMismatch: false,
+      declaredTotal: null,
+      visibleItems,
+      debug: { listStart: info.listStart, patterns: info.patterns, windowText: "" },
+    };
+  }
+
+  const start = Math.max(0, info.listStart - 220);
+  const windowText = text.slice(start, info.listStart);
+
+  // Find standalone integers 3..100, filtering out noisy patterns
+  const matches = Array.from(windowText.matchAll(/\b(\d{1,3})\b/g));
+  const nums: number[] = [];
+
+  for (const m of matches) {
+    const val = parseInt(m[1], 10);
+    if (val < 3 || val > 100) continue;
+
+    const idx = m.index!;
+    const len = m[1].length;
+    const charBefore = idx > 0 ? windowText[idx - 1] : '';
+    const charAfter = idx + len < windowText.length ? windowText[idx + len] : '';
+
+    // Filter out percentages: 66%, %66
+    if (charBefore === '%' || charAfter === '%') continue;
+
+    // Filter out decimals: .78, 3.14
+    if (charBefore === '.' || charAfter === '.') continue;
+
+    // Filter out currency-adjacent: $55, 55$
+    if (charBefore === '$' || charAfter === '$') continue;
+
+    nums.push(val);
+  }
+
+  const declaredTotal = nums.length ? nums[nums.length - 1] : null;
+
+  // Plausibility check: declaredTotal shouldn't be wildly larger than visible
+  // Allows "13 vs 6" but blocks "55 vs 6" (likely phone/noise)
+  const plausible = declaredTotal !== null &&
+    declaredTotal <= Math.max(visibleItems * 3, 25);
+
+  // Mismatch only if declaredTotal is meaningfully bigger than visible AND plausible
+  const hasMismatch =
+    declaredTotal !== null &&
+    plausible &&
+    visibleItems >= 3 &&
+    declaredTotal >= visibleItems + 3;
+
+  return {
+    hasMismatch,
+    declaredTotal,
+    visibleItems,
+    debug: { listStart: info.listStart, patterns: info.patterns, windowText },
+  };
 }
