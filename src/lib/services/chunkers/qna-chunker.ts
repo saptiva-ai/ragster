@@ -29,12 +29,12 @@ export interface QADetectionResult {
 }
 
 // Minimum coverage to treat document as Q&A format
-const QA_COVERAGE_THRESHOLD = 0.8;  // 80% of doc must be Q&A pairs
+const QA_COVERAGE_THRESHOLD = 0.6;  // 60% of doc must be Q&A pairs
 
 // Minimum Q&A pairs to trigger Q&A mode
 const MIN_QA_PAIRS = 3;
 
-// Max characters per Q&A answer - if longer, reject as not real FAQ
+// Max characters per Q&A answer - skip oversized pairs but keep valid ones
 const MAX_ANSWER_CHARS = 3000;
 
 /**
@@ -189,13 +189,21 @@ export class QnAChunker implements TextChunker {
   async chunk(text: string, options?: ChunkOptions): Promise<Chunk[]> {
     const detection = detectQAStructure(text);
 
-    if (!detection.isQA) {
+    // Force QnA mode if filename contains "QNA" (case insensitive)
+    const filename = options?.filename || '';
+    const forceQnA = /qna/i.test(filename);
+
+    // Use QnA mode if: forced by filename OR meets coverage threshold
+    const useQnAMode = forceQnA || detection.isQA;
+
+    if (!useQnAMode || detection.pairs.length === 0) {
       // Not Q&A format → use standard chunker
       console.log(`[QnAChunker] Not FAQ format (${detection.pairs.length} pairs, ${(detection.coverage * 100).toFixed(0)}% coverage) → using RecursiveChunker`);
       return this.fallback.chunk(text, options);
     }
 
-    console.log(`[QnAChunker] Detected FAQ: ${detection.pairs.length} Q&A pairs (${(detection.coverage * 100).toFixed(0)}% coverage)`);
+    const reason = forceQnA ? 'filename contains QNA' : `${(detection.coverage * 100).toFixed(0)}% coverage`;
+    console.log(`[QnAChunker] Detected FAQ: ${detection.pairs.length} Q&A pairs (${reason})`);
 
     const chunks: Chunk[] = [];
     let chunkIndex = 1;

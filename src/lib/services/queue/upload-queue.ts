@@ -204,8 +204,9 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     //
     // Config: 1200 chars per chunk, 150 char overlap (for non-Q&A content)
     // Q&A pairs: Each Q+A becomes one chunk (may exceed 1200 chars, that's OK)
+    // If filename contains "QNA", force QnA mode
     const chunker = new QnAChunker(1200, 150);
-    const chunks = await chunker.chunk(extracted.content, {});
+    const chunks = await chunker.chunk(extracted.content, { filename: fileName });
     const chunkerName = chunker.getName();
 
     console.log(`[Queue] ${job.id}: Chunking with ${chunkerName}...`);
