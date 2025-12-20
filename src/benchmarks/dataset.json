@@ -1,0 +1,155 @@
+[
+  {
+    "id": "AMPI-CERT-01",
+    "query": "¿Con qué certificaciones cuenta AMPI?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["certificaciones", "federales"] },
+    "tags": ["ampi", "certificaciones"]
+  },
+  {
+    "id": "AMPI-CERT-02",
+    "query": "¿Qué requisitos se necesitan para certificarse?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["requisitos", "certificación"] },
+    "tags": ["ampi", "certificaciones"]
+  },
+  {
+    "id": "AMPI-EDU-01",
+    "query": "¿AMPI cuenta con una licenciatura?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["licenciatura", "educación"] },
+    "tags": ["ampi", "educacion"]
+  },
+  {
+    "id": "AMPI-VALID-01",
+    "query": "¿Cómo puedo validar si un asesor cuenta con certificaciones en el Registro Nacional de Personas con Competencias Certificadas?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["Registro Nacional", "competencias"] },
+    "tags": ["ampi", "validacion"]
+  },
+  {
+    "id": "AMPI-COST-01",
+    "query": "¿Cuáles son los costos de los cursos CCIE para las SECCIONES?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["costos", "CCIE", "secciones"] },
+    "tags": ["ampi", "costos"]
+  },
+  {
+    "id": "AMPI-CURS-01",
+    "query": "¿Qué cursos ofrece AMPI Nacional?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["cursos", "oferta", "nacional"] },
+    "tags": ["ampi", "cursos"]
+  },
+  {
+    "id": "AMPI-CUOT-01",
+    "query": "¿Cuál es el monto de la cuota nacional?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["monto", "cuota", "nacional"] },
+    "tags": ["ampi", "cuotas"]
+  },
+  {
+    "id": "AMPI-PAGO-01",
+    "query": "¿Cómo pago mi cuota de sección?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["pago", "cuota", "sección"] },
+    "tags": ["ampi", "pagos"]
+  },
+  {
+    "id": "AMPI-PAGO-02",
+    "query": "¿Como pagar mi cuota nacional y/o local?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["pagar", "nacional", "local"] },
+    "tags": ["ampi", "pagos"]
+  },
+  {
+    "id": "AMPI-PAGO-03",
+    "query": "¿Como pagar cuota de afiliados?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["pagar", "afiliados"] },
+    "tags": ["ampi", "pagos"]
+  },
+  {
+    "id": "AMPI-CONV-01",
+    "query": "¿Con qué convenios cuenta AMPI?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["convenios"] },
+    "tags": ["ampi", "convenios"]
+  },
+  {
+    "id": "AMPI-BENE-01",
+    "query": "¿Cuáles son los Beneficios para asociados?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["beneficios", "asociados"] },
+    "tags": ["ampi", "beneficios"]
+  },
+  {
+    "id": "AMPI-MEMB-01",
+    "query": "¿Cómo saber si ya se enviaron las membresías?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["envío", "membresías"] },
+    "tags": ["ampi", "membresias"]
+  },
+  {
+    "id": "AMPI-JOIN-01",
+    "query": "¿Cuáles son los requisitos para unirse a la AMPI?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["requisitos", "unirse", "asociarse"] },
+    "tags": ["ampi", "afiliacion"]
+  },
+  {
+    "id": "AMPI-RECO-01",
+    "query": "¿Me pueden recomendar a algún asesor AMPI?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["recomendar", "asesor"] },
+    "tags": ["ampi", "asesores"]
+  },
+  {
+    "id": "AMPI-SELL-01",
+    "query": "¿Cómo puedo vender una propiedad?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["vender", "propiedad"] },
+    "tags": ["ampi", "ventas"]
+  },
+  {
+    "id": "AMPI-BOOK-01",
+    "query": "Que es el Libro Verde?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["Libro Verde"] },
+    "tags": ["ampi", "general"]
+  },
+  {
+    "id": "AMPI-ADDR-01",
+    "query": "¿Cuál es la dirección de AMPI?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["dirección", "ubicación", "calle"] },
+    "tags": ["ampi", "contacto"]
+  },
+  {
+    "id": "AMPI-EVEN-01",
+    "query": "¿Qué eventos nacionales tiene AMPI y en qué fechas?",
+    "expected": { "sourceMatches": ["AMPI"], "keywordsInChunks": ["eventos", "nacionales", "fechas"] },
+    "tags": ["ampi", "eventos"]
+  },
+  {
+    "id": "IBERO-ADM-01",
+    "query": "¿Cuáles son los pasos del proceso de admisión IBERO?",
+    "expected": { "sourceMatches": ["Iberoamericana"], "keywordsInChunks": ["admisión", "pasos", "registro"] },
+    "tags": ["ibero", "admision"]
+  },
+  {
+    "id": "IBERO-EXAM-01",
+    "query": "¿Qué porcentaje cuenta el examen EXANI-II para la admisión?",
+    "expected": { "sourceMatches": ["Iberoamericana"], "keywordsInChunks": ["EXANI-II", "40%", "porcentaje"] },
+    "tags": ["ibero", "examen"]
+  },
+  {
+    "id": "AMBIGUO-01",
+    "query": "¿Cuál es el costo de inscripción?",
+    "expected": { 
+      "sourceMatches": ["Iberoamericana", "AMPI"], 
+      "answerContains": ["especificar", "depende", "institución"] 
+    },
+    "tags": ["ambiguo", "conflict"]
+  },
+  {
+    "id": "NEG-001",
+    "query": "¿Cuál es la tasa de interés de BBVA?",
+    "expected": { 
+      "shouldRefuse": true, 
+      "sourceMatches": [] 
+    },
+    "tags": ["negativo", "banco-externo"]
+  },
+  {
+    "id": "NEG-002",
+    "query": "¿Cómo cocino una lasaña?",
+    "expected": { 
+      "shouldRefuse": true, 
+      "sourceMatches": [] 
+    },
+    "tags": ["negativo", "out-of-domain"]
+  }
+]

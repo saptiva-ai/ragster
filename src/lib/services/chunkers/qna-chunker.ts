@@ -35,7 +35,7 @@ const QA_COVERAGE_THRESHOLD = 0.6;  // 60% of doc must be Q&A pairs
 const MIN_QA_PAIRS = 3;
 
 // Max characters per Q&A answer - skip oversized pairs but keep valid ones
-const MAX_ANSWER_CHARS = 3000;
+const MAX_ANSWER_CHARS = 8000;
 
 /**
  * Detect Q&A structure in text.
