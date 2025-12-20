@@ -12,6 +12,7 @@ services:
     environment:
       # MongoDB: uses Cloud if MONGODB_URI is set, otherwise local Docker
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/ragster}
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-ragster}
       # Weaviate: local Docker por defecto, cambiar WEAVIATE_HOST para cloud
       - WEAVIATE_CLOUD=${WEAVIATE_CLOUD:-false}
       - WEAVIATE_HOST=${WEAVIATE_HOST:-weaviate}
