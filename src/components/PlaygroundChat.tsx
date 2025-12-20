@@ -42,33 +42,32 @@ type StoredSettings = {
   systemPrompt: string;
 };
 
-// Initialize from localStorage
-function getInitialChatState() {
-  if (typeof window === "undefined") return { messages: [], token: uuidv4() };
-  const saved = localStorage.getItem("ragster-chat");
-  if (saved) {
-    try {
-      const { messages: m, token: t } = JSON.parse(saved);
-      return {
-        messages: m.map((msg: Message) => ({ ...msg, timestamp: new Date(msg.timestamp) })),
-        token: t,
-      };
-    } catch {
-      return { messages: [], token: uuidv4() };
-    }
-  }
-  return { messages: [], token: uuidv4() };
-}
-
 export default function PlaygroundChat() {
-  const initial = getInitialChatState();
-  const [messages, setMessages] = useState<Message[]>(initial.messages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [token, setToken] = useState(initial.token);
+  const [token, setToken] = useState<string>("");
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Hydrate from localStorage after mount (avoids SSR mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem("ragster-chat");
+    if (saved) {
+      try {
+        const { messages: m, token: t } = JSON.parse(saved);
+        setMessages(m.map((msg: Message) => ({ ...msg, timestamp: new Date(msg.timestamp) })));
+        setToken(t);
+      } catch {
+        setToken(uuidv4());
+      }
+    } else {
+      setToken(uuidv4());
+    }
+    setIsHydrated(true);
+  }, []);
 
   // Obtener configuraciones del modelo
   const [modelSettings, setModelSettings] = useState<StoredSettings>({
@@ -155,12 +154,12 @@ export default function PlaygroundChat() {
     };
   }, []);
 
-  // Save chat to localStorage when messages/token change
+  // Save chat to localStorage when messages/token change (only after hydration)
   useEffect(() => {
-    if (token) {
+    if (isHydrated && token) {
       localStorage.setItem("ragster-chat", JSON.stringify({ messages, token }));
     }
-  }, [messages, token]);
+  }, [messages, token, isHydrated]);
 
   // Scroll al final de los mensajes cuando se añade uno nuevo
   useEffect(() => {
