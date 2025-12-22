@@ -14,6 +14,7 @@ interface EvalResult {
   id: string;
   query: string;
   latencyMs: number;
+  retrievalMs: number;
   retrieval: {
     hit: boolean;
     rank: number;
@@ -126,6 +127,7 @@ describe('RAG Professional Benchmark', () => {
         id: tc.id,
         query: tc.query,
         latencyMs: totalLatency,
+        retrievalMs: retrievalMs,
         retrieval: { hit, rank: firstHitIndex + 1, sources: foundSources.slice(0, 3) },
         generation: { answer, keywordsPresent: present, keywordsMissing: missing, refused, citationsFound: citations },
         outcome
@@ -165,11 +167,13 @@ describe('RAG Professional Benchmark', () => {
 | Metric | Value | Description |
 |--------|-------|-------------|
 | **Total Tests** | ${total} | Total scenarios executed |
+| **Failed** | ${failed} | Tests that failed |
 | **Success Rate** | **${(passed/total*100).toFixed(1)}%** | Overall pass rate |
 | **Retrieval Hit Rate** | ${retrievalAccuracy.toFixed(1)}% | Correct document found in Top 5 |
 | **False Negative Rate** | ${falseNegativeRate.toFixed(1)}% | Answer refused when info existed |
 | **Hallucination Rate** | ${hallucinationRate.toFixed(1)}% | Answer given when info did NOT exist |
 | **Avg Latency** | ${(avgLatency/1000).toFixed(2)}s | Average end-to-end time |
+| **Avg Retrieval Time** | ${(results.reduce((sum, r) => sum + r.retrievalMs, 0) / total / 1000).toFixed(2)}s | Average retrieval time |
 | **P95 Latency** | ${(calculatePercentile(latencies, 95)/1000).toFixed(2)}s | 95th percentile latency |
 
 ## 📝 Detailed Results
