@@ -8,15 +8,13 @@ const MAX_EMBED_CHARS = 8000;
 
 /**
  * Saptiva API embedder implementation.
- * Uses MRL (Matryoshka Representation Learning) truncation:
- * - Regular chunks: 512d (faster search, less storage)
- * - QnA chunks: 1024d (full precision)
+ * Both regular and QnA chunks use 1024d for compatibility with existing documents.
  */
 export class SaptivaEmbedder implements Embedder {
   private config = configService.getEmbeddingConfig();
 
   /**
-   * Get embedding truncated to configured dimensions (512d for regular chunks).
+   * Get embedding truncated to configured dimensions (default 1024d).
    * Uses MRL - first N dimensions preserve semantic meaning.
    */
   async embed(text: string, options?: EmbeddingOptions): Promise<EmbeddingResult> {

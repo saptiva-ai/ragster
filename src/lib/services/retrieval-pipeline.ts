@@ -491,8 +491,8 @@ export class RetrievalPipeline {
   ): Promise<PipelineResult> {
     const fetchCount = this.config.targetChunks * this.config.overFetchMultiplier;
 
-    // Step 1: Fetch candidates from BOTH collections (Documents 512d + DocumentsQnA 1024d)
-    // embedding should be full 1024d - searchHybridBoth truncates for regular collection
+    // Step 1: Fetch candidates from BOTH collections (Documents + DocumentsQnA, both 1024d)
+    // Both collections use 1024d embeddings for compatibility
     let results = await weaviateClient.searchHybridBoth(
       query,
       embedding,

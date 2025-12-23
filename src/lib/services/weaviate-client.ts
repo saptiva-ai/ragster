@@ -4,8 +4,7 @@ import { WeaviateSearchResult, ChunkResult, StoredObject } from "@/lib/core/type
 
 /**
  * Collection names for documents.
- * Regular chunks use 512d embeddings (MRL truncated for speed).
- * QnA chunks use 1024d embeddings (full precision).
+ * Both collections use 1024d embeddings for compatibility with existing documents.
  */
 const COLLECTION_NAME = configService.getWeaviateConfig().collectionName;
 const QNA_COLLECTION_NAME = configService.getWeaviateConfig().qnaCollectionName;
@@ -505,7 +504,7 @@ async function searchHybridAutocut(
 
 /**
  * Hybrid search across BOTH collections (Documents + DocumentsQnA).
- * Takes full 1024d vector, truncates to 512d for regular collection.
+ * Both use 1024d vectors for compatibility with existing documents.
  * Merges results by score, marking QnA results.
  */
 // Base fields for Documents collection (no Q&A fields)
@@ -858,7 +857,7 @@ async function deleteByFilterQnA(
 
 /**
  * Weaviate client service object.
- * Two collections: Documents (512d) and DocumentsQnA (1024d).
+ * Two collections: Documents and DocumentsQnA (both 1024d).
  * Supports both local (Docker) and cloud (WCS) modes via WEAVIATE_CLOUD env var.
  */
 export const weaviateClient = {

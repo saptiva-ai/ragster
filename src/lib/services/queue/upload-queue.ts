@@ -243,7 +243,7 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
       }
     });
 
-    console.log(`[Queue] ${job.id}: Split ${chunks.length} chunks → ${regularChunks.length} regular (512d), ${qnaChunks.length} QnA (1024d)`);
+    console.log(`[Queue] ${job.id}: Split ${chunks.length} chunks → ${regularChunks.length} regular (1024d), ${qnaChunks.length} QnA (1024d)`);
 
     // 5. Generate embeddings (different dimensions for each type)
     job.stage = 'embedding';
@@ -255,7 +255,7 @@ class UploadQueue implements JobQueue<UploadJobPayload> {
     const embedder = new SaptivaEmbedder();
     const allEmbeddings: Array<{ embedding: number[] }> = new Array(chunks.length);
 
-    // Embed regular chunks (512d - MRL truncated)
+    // Embed regular chunks (1024d)
     if (regularChunks.length > 0) {
       const regularEmbeddings = await embedder.embedBatch(
         regularChunks.map(c => c.chunk.content),

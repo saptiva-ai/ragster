@@ -147,7 +147,7 @@ class ConfigService {
         apiUrl: process.env.EMBEDDING_API_URL || 'https://api.saptiva.com/api/embed',
         apiKey,
         model: process.env.EMBEDDING_MODEL || 'Saptiva Embed',
-        dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '512'),
+        dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '1024'),
         qnaDimensions: parseInt(process.env.EMBEDDING_QNA_DIMENSIONS || '1024'),
       },
       llm: {
