@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { validateRequest } from "@/lib/api-auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { getSaptivaEmbedder } from "@/lib/services/embedders/saptiva-embedder";
@@ -968,19 +967,21 @@ function validateCitations(
 // POST /api/query-weaviate
 // ================================
 //
-// PIPELINE STEPS:
-//  1. AUTH      → Verify session
-//  2. PARSE     → Extract query, normalize UTF-8
-//  3. HISTORY   → Load conversation context from MongoDB
-//  4. PREPARE   → Build embedQuery + bm25Query (cleaned for keyword search)
-//  5. SEARCH    → Hybrid search in Weaviate (vector + BM25)
-//  6. FILTER    → LLM judges chunk relevance (removes noise)
-//  7. EXPAND    → Add adjacent chunks for lists/context
-//  8. CONTEXT   → Apply limits (chunks, chars, per-source)
-//  9. GATE      → Reject if zero evidence
-// 10. GENERATE  → LLM produces answer with citations
-// 11. VALIDATE  → Verify citations exist in context, repair if needed
-// 12. RESPOND   → Return JSON response
+// RAG PIPELINE FLOW (12 STEPS):
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ STEP 1: AUTH      → Verify session/API key                                  │
+// │ STEP 2: PARSE     → Extract query, normalize UTF-8 (Spanish chars)          │
+// │ STEP 3: HISTORY   → Load conversation context from MongoDB                  │
+// │ STEP 4: PREPARE   → Build embedQuery + bm25Query (cleaned for keywords)     │
+// │ STEP 5: SEARCH    → Hybrid search in Weaviate (vector + BM25)               │
+// │ STEP 6: FILTER    → LLM judges chunk relevance (removes noise)              │
+// │ STEP 7: EXPAND    → Add adjacent chunks for lists/context                   │
+// │ STEP 8: CONTEXT   → Apply limits (chunks, chars, per-source)                │
+// │ STEP 9: GATE      → Reject if zero evidence (prevents hallucination)        │
+// │ STEP 10: GENERATE → LLM produces answer with citations                      │
+// │ STEP 11: VALIDATE → Verify citations exist in context, auto-fix/repair      │
+// │ STEP 12: RESPOND  → Return JSON response with answer + sources              │
+// └─────────────────────────────────────────────────────────────────────────────┘
 //
 
 export async function POST(req: NextRequest) {
@@ -989,13 +990,22 @@ export async function POST(req: NextRequest) {
   const log = new RAGLogger();
 
   try {
-    // [1] AUTH - Verify session
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // ========================================
+    // STEP 1: AUTH - Verify session or API key
+    // ========================================
+    // Validates the incoming request using API key or session token.
+    // If invalid, returns 401 Unauthorized immediately.
+    const auth = await validateRequest(req);
+    if (!auth.valid) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
-    // [2] PARSE - Extract query, normalize UTF-8
+    // ========================================
+    // STEP 2: PARSE - Extract query, normalize UTF-8
+    // ========================================
+    // Extracts the query and other parameters from the request body.
+    // Normalizes UTF-8 encoding to fix Spanish characters (é, á, ñ, etc.).
+    // Returns 400 if query is missing.
     const body = await req.json();
     const { message_id, query, systemPrompt, modelId, temperature, contacts = [] } = body;
 
@@ -1020,7 +1030,12 @@ export async function POST(req: NextRequest) {
 
     log.startTrace(cleanQuery);
 
-    // [3] HISTORY - Load conversation context from MongoDB
+    // ========================================
+    // STEP 3: HISTORY - Load conversation context from MongoDB
+    // ========================================
+    // Saves the current user message to MongoDB for conversation tracking.
+    // Loads the last 5 messages to build conversation history.
+    // Extracts previousQuestion for context-aware short query handling.
     const { db } = await connectToDatabase();
     const messagesCollection = db.collection("messages");
 
@@ -1052,7 +1067,13 @@ export async function POST(req: NextRequest) {
       history = messages.map((m) => `- Role: ${m.message_role}\n  - Mensaje: ${m.message}`).join("\n");
     }
 
-    // [4] PREPARE - Build embedQuery + bm25Query
+    // ========================================
+    // STEP 4: PREPARE - Build embedQuery + bm25Query
+    // ========================================
+    // Prepares two versions of the query:
+    // - embedQuery: Full semantic query for vector embedding (preserves meaning)
+    // - bm25Query: Cleaned query for BM25 keyword search (removes noise words like "what", "how")
+    // For short queries (≤3 words), uses previousQuestion for better context.
     const queryWordCount = cleanQuery.trim().split(/\s+/).length;
     const isShortQuery = queryWordCount <= configService.getQueryConfig().maxWordsForAmbiguous;
     const baseSearchQuery = isShortQuery && previousQuestion ? previousQuestion : cleanQuery;
@@ -1068,7 +1089,14 @@ export async function POST(req: NextRequest) {
     // embedQuery = full semantic meaning, bm25Query = cleaned for keyword search
     const embedQuery = baseSearchQuery;
 
-    // [5] SEARCH - Hybrid search in Weaviate
+    // ========================================
+    // STEP 5: SEARCH - Hybrid search in Weaviate
+    // ========================================
+    // Performs hybrid search combining:
+    // - Vector search: Semantic similarity using embeddings
+    // - BM25 search: Keyword matching for exact terms
+    // Alpha parameter controls the balance (lower = more BM25, higher = more vector).
+    // Falls back to pure vector search if hybrid fails.
     let results: RetrievalHit[] = [];
     let pipelineStats = { initialCount: 0, afterThreshold: 0, afterRerank: 0, afterExpansion: 0, sourcesFound: 0 };
 
@@ -1088,7 +1116,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // [6] FILTER - LLM judges chunk relevance
+    // ========================================
+    // STEP 6: FILTER - LLM judges chunk relevance
+    // ========================================
+    // Uses an LLM to judge if each chunk actually answers the question.
+    // Removes noise chunks that are semantically similar but don't contain the answer.
+    // If LLM says "0 chunks are relevant", we refuse to answer (prevents hallucinations).
     const filterResult = await filterChunksWithLLM(cleanQuery, results);
     log.filter(filterResult.stats.inputCount, filterResult.stats.outputCount, filterResult.stats.filterTimeMs > 0);
 
@@ -1126,7 +1159,13 @@ export async function POST(req: NextRequest) {
     const finalResults = toRetrievalHits(filterResult.filteredChunks);
     const finalEntailmentCount = filterResult.stats.entailmentCount;
 
-    // [7] EXPAND - Add adjacent chunks for lists/context
+    // ========================================
+    // STEP 7: EXPAND - Add adjacent chunks for lists/context
+    // ========================================
+    // Expands context by adding neighboring chunks when needed:
+    // - For lists: Adds adjacent chunks to capture complete enumerated items
+    // - For count mismatches: When "13 items" declared but only 6 visible, fetches more
+    // - Uses two strategies: ordered expansion (by chunkIndex) or similarity-based expansion
     const expansionCfg = configService.getExpansionConfig();
     const resultsBeforeExpansion = finalResults.length;
     let expandedCount = 0;
@@ -1324,7 +1363,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // [8] CONTEXT - Apply limits (chunks, chars, per-source)
+    // ========================================
+    // STEP 8: CONTEXT - Apply limits (chunks, chars, per-source)
+    // ========================================
+    // Builds the final context string from filtered/expanded chunks.
+    // Applies limits: max chunks total, max chars per chunk, max chunks per source.
+    // Creates contextByKey map for citation validation later.
+    // Formats each chunk with "SOURCE Página N" prefix for LLM to cite.
     const { context, usedChunks, totalChunks, sources, contextByKey } = buildContext(contextResults);
     const contextTokens = estimateTokens(context);
 
@@ -1333,7 +1378,12 @@ export async function POST(req: NextRequest) {
     const expandedInContext = usedChunks - Math.min(usedChunks, retrievedCount);
     log.context(usedChunks, contextTokens, retrievedCount, expandedInContext);
 
-    // [9] GATE - Reject if zero evidence
+    // ========================================
+    // STEP 9: GATE - Reject if zero evidence
+    // ========================================
+    // Final safety check before generation.
+    // If no chunks made it through all filters, refuse to answer.
+    // This prevents the LLM from hallucinating without any document evidence.
     if (usedChunks === 0) {
       guardrailsTriggered.push('no_chunks');
       log.refuse('no_chunks');
@@ -1352,7 +1402,13 @@ export async function POST(req: NextRequest) {
 
     log.evidence(usedChunks > 0 ? 'AVAILABLE' : 'EMPTY');
 
-    // [10] GENERATE - LLM produces answer with citations
+    // ========================================
+    // STEP 10: GENERATE - LLM produces answer with citations
+    // ========================================
+    // Calls the LLM to generate an answer based on the context.
+    // System prompt instructs: answer in Spanish, cite sources, no hallucination.
+    // User message contains: document excerpts, conversation history, and the question.
+    // Temperature 0.1 for factual, deterministic responses.
     const systemMessage = buildSystemMessage(systemPrompt, contactName);
     const userMessage = buildUserMessage(context, usedChunks, history, previousQuestion, cleanQuery);
 
@@ -1363,7 +1419,16 @@ export async function POST(req: NextRequest) {
 
     log.generate(modelId || 'default', genLatency);
 
-    // [11] VALIDATE - Verify citations exist in context
+    // ========================================
+    // STEP 11: VALIDATE - Verify citations exist in context
+    // ========================================
+    // Validates that LLM's citations are real (not hallucinated).
+    // Steps:
+    // - Enforce max 1 citation bullet per page
+    // - Parse "Fuente:" section to extract citations
+    // - Verify each quoted phrase exists in the source chunk
+    // - Auto-fix quotes that are too short/long or slightly mismatched
+    // - If validation fails, attempt ONE repair pass with LLM
     answer = enforceOneBulletPerPage(answer);
 
     // Classify response type: FULL, PARTIAL, or ABSENT
@@ -1481,7 +1546,14 @@ Si no puedes citar literalmente, responde: "No especificado en los documentos pr
       debug.citation.log(`All ${citations.length} citations verified`);
     }
 
-    // [12] RESPOND - Return JSON response
+    // ========================================
+    // STEP 12: RESPOND - Return JSON response
+    // ========================================
+    // Builds and returns the final JSON response containing:
+    // - answer: The LLM-generated response with citations
+    // - sources: List of document sources used
+    // - debug info: Pipeline stats, citation validation, guardrails (dev only)
+    // Also saves assistant response to MongoDB for conversation history.
     const response: Record<string, unknown> = {
       success: true,
       query: cleanQuery,

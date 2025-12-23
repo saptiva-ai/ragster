@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { validateRequest } from "@/lib/api-auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { ObjectId } from "mongodb";
@@ -15,10 +14,10 @@ import { ObjectId } from "mongodb";
  */
 export async function DELETE(req: NextRequest) {
   try {
-    // 1. Authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. Authentication (supports API key or session)
+    const auth = await validateRequest(req);
+    if (!auth.valid) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     // 2. Parse request
