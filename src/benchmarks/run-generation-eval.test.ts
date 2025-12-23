@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { describe, it, afterAll } from 'vitest';
 import { retrievalPipeline } from '@/lib/services/retrieval-pipeline';
 import { getSaptivaEmbedder } from '@/lib/services/embedders/saptiva-embedder';
@@ -59,8 +59,6 @@ describe('RAG Professional Benchmark', () => {
       // 1. Retrieval
       const embeddingResult = await embedder.embedFull(tc.query);
       const pipelineResult = await retrievalPipeline.execute(tc.query, embeddingResult.embedding);
-      const retrievalMs = Date.now() - startTime;
-
       // Check retrieval hit
       const foundSources = pipelineResult.results.map(r => String(r.properties.sourceName || ''));
       const expectedSources = tc.expected.sourceMatches || [];
@@ -149,7 +147,7 @@ describe('RAG Professional Benchmark', () => {
     // Generate Final Report
     const total = results.length;
     const passed = results.filter(r => r.outcome === 'PASS').length;
-    const failed = total - passed;
+    void (total - passed); // for potential future use
     const latencies = results.map(r => r.latencyMs);
     const avgLatency = latencies.reduce((a,b) => a+b, 0) / total;
     
