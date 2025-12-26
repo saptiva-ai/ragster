@@ -1,0 +1,369 @@
+{
+  "timestamp": "2025-12-20T01:20:29.303Z",
+  "summary": {
+    "total": 24,
+    "passed": 22,
+    "failed": 2,
+    "accuracy": "91.67%",
+    "avgLatencyMs": "1096.67",
+    "avgMrr": "0.8157"
+  },
+  "details": [
+    {
+      "testId": "AMPI-CERT-01",
+      "query": "¿Con qué certificaciones cuenta AMPI?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1529
+    },
+    {
+      "testId": "AMPI-CERT-02",
+      "query": "¿Qué requisitos se necesitan para certificarse?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1079
+    },
+    {
+      "testId": "AMPI-EDU-01",
+      "query": "¿AMPI cuenta con una licenciatura?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1209
+    },
+    {
+      "testId": "AMPI-VALID-01",
+      "query": "¿Cómo puedo validar si un asesor cuenta con certificaciones en el Registro Nacional de Personas con Competencias Certificadas?",
+      "retrieval": {
+        "foundSources": [
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf",
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 0.1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1190
+    },
+    {
+      "testId": "AMPI-COST-01",
+      "query": "¿Cuáles son los costos de los cursos CCIE para las SECCIONES?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1200
+    },
+    {
+      "testId": "AMPI-CURS-01",
+      "query": "¿Qué cursos ofrece AMPI Nacional?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1038
+    },
+    {
+      "testId": "AMPI-CUOT-01",
+      "query": "¿Cuál es el monto de la cuota nacional?",
+      "retrieval": {
+        "foundSources": [
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf",
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 0.14285714285714285,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1220
+    },
+    {
+      "testId": "AMPI-PAGO-01",
+      "query": "¿Cómo pago mi cuota de sección?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1052
+    },
+    {
+      "testId": "AMPI-PAGO-02",
+      "query": "¿Como pagar mi cuota nacional y/o local?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1229
+    },
+    {
+      "testId": "AMPI-PAGO-03",
+      "query": "¿Como pagar cuota de afiliados?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1044
+    },
+    {
+      "testId": "AMPI-CONV-01",
+      "query": "¿Con qué convenios cuenta AMPI?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1015
+    },
+    {
+      "testId": "AMPI-BENE-01",
+      "query": "¿Cuáles son los Beneficios para asociados?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1014
+    },
+    {
+      "testId": "AMPI-MEMB-01",
+      "query": "¿Cómo saber si ya se enviaron las membresías?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1011
+    },
+    {
+      "testId": "AMPI-JOIN-01",
+      "query": "¿Cuáles son los requisitos para unirse a la AMPI?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1025
+    },
+    {
+      "testId": "AMPI-RECO-01",
+      "query": "¿Me pueden recomendar a algún asesor AMPI?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1188
+    },
+    {
+      "testId": "AMPI-SELL-01",
+      "query": "¿Cómo puedo vender una propiedad?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1027
+    },
+    {
+      "testId": "AMPI-BOOK-01",
+      "query": "Que es el Libro Verde?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1004
+    },
+    {
+      "testId": "AMPI-ADDR-01",
+      "query": "¿Cuál es la dirección de AMPI?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1021
+    },
+    {
+      "testId": "AMPI-EVEN-01",
+      "query": "¿Qué eventos nacionales tiene AMPI y en qué fechas?",
+      "retrieval": {
+        "foundSources": [
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf",
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 0.3333333333333333,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1011
+    },
+    {
+      "testId": "IBERO-ADM-01",
+      "query": "¿Cuáles son los pasos del proceso de admisión IBERO?",
+      "retrieval": {
+        "foundSources": [
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf",
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1013
+    },
+    {
+      "testId": "IBERO-EXAM-01",
+      "query": "¿Qué porcentaje cuenta el examen EXANI-II para la admisión?",
+      "retrieval": {
+        "foundSources": [
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf",
+          "QnA_Ragster AMPI.docx.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 992
+    },
+    {
+      "testId": "AMBIGUO-01",
+      "query": "¿Cuál es el costo de inscripción?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": true,
+        "mrr": 1,
+        "totalChunks": 15
+      },
+      "success": true,
+      "latencyMs": 1027
+    },
+    {
+      "testId": "NEG-001",
+      "query": "¿Cuál es la tasa de interés de BBVA?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": false,
+        "mrr": 0,
+        "totalChunks": 15
+      },
+      "success": false,
+      "latencyMs": 1001
+    },
+    {
+      "testId": "NEG-002",
+      "query": "¿Cómo cocino una lasaña?",
+      "retrieval": {
+        "foundSources": [
+          "QnA_Ragster AMPI.docx.pdf",
+          "Guía Oficial de Admisión a Licenciaturas – Universidad Iberoamericana CDMX.pdf"
+        ],
+        "hitRate": false,
+        "mrr": 0,
+        "totalChunks": 15
+      },
+      "success": false,
+      "latencyMs": 1181
+    }
+  ]
+}

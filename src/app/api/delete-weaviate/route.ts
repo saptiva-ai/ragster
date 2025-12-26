@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { validateRequest } from "@/lib/api-auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { ObjectId } from "mongodb";
@@ -15,10 +14,10 @@ import { ObjectId } from "mongodb";
  */
 export async function DELETE(req: NextRequest) {
   try {
-    // 1. Authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. Authentication (supports API key or session)
+    const auth = await validateRequest(req);
+    if (!auth.valid) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     // 2. Parse request
@@ -47,8 +46,12 @@ export async function DELETE(req: NextRequest) {
 
       // Only delete from Weaviate if document was completed (status=2) and deleteWeaviate is true
       if (doc.status === 2 && deleteWeaviate) {
-        const weaviateDeleted = await weaviateClient.deleteByFilter('sourceName', doc.filename);
-        console.log(`[Delete] Removed ${weaviateDeleted} chunks from Weaviate for ${doc.filename}`);
+        // Delete from BOTH collections (regular + QnA)
+        const [regularDeleted, qnaDeleted] = await Promise.all([
+          weaviateClient.deleteByFilter('sourceName', doc.filename),
+          weaviateClient.deleteByFilterQnA('sourceName', doc.filename),
+        ]);
+        console.log(`[Delete] Removed ${regularDeleted} regular + ${qnaDeleted} QnA chunks from Weaviate for ${doc.filename}`);
       } else {
         console.log(`[Delete] Skipping Weaviate delete (status=${doc.status}, doc was not completed)`);
       }
@@ -67,10 +70,13 @@ export async function DELETE(req: NextRequest) {
     // Mode 2: Delete all documents by name (original behavior)
     console.log(`[Delete] Deleting all documents named: ${name}`);
 
-    // Delete from Weaviate
+    // Delete from BOTH Weaviate collections
     if (deleteWeaviate) {
-      const weaviateDeleted = await weaviateClient.deleteByFilter('sourceName', name);
-      console.log(`[Delete] Removed ${weaviateDeleted} chunks from Weaviate`);
+      const [regularDeleted, qnaDeleted] = await Promise.all([
+        weaviateClient.deleteByFilter('sourceName', name),
+        weaviateClient.deleteByFilterQnA('sourceName', name),
+      ]);
+      console.log(`[Delete] Removed ${regularDeleted} regular + ${qnaDeleted} QnA chunks from Weaviate`);
     }
 
     // Delete ALL matching records from MongoDB

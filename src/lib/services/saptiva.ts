@@ -1,27 +1,24 @@
+// SAPTIVA SERVICE
+//
+// LLM API client for text generation and OCR.
+// Used for: 1) Chunk filtering (2nd call), 2) Answer generation (main call)
+
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { DEFAULT_MODELS, MODEL_NAMES } from "@/config/models";
 
-// Servicio para interactuar con la API de Saptiva
 export class SaptivaService {
   private apiKey: string;
   private baseUrl: string;
 
-  constructor(apiKey: string, baseUrl: string = "https://api.saptiva.com") {
+  constructor(apiKey: string, baseUrl?: string) {
     this.apiKey = apiKey;
+    const url = baseUrl || "https://api.saptiva.com";
     // Remove trailing slash to prevent double slash in URL
-    this.baseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+    this.baseUrl = url.endsWith("/") ? url.slice(0, -1) : url;
   }
 
-  /**
-   * Realiza una solicitud a la API de Saptiva para generar texto
-   *
-   * @param id - Message ID for storing in DB
-   * @param systemMessage - System role content (instructions only)
-   * @param userMessage - User role content (context + query)
-   * @param model - Model name
-   * @param temperature - Temperature for generation
-   * @param maxTokens - Max tokens for response
-   */
+  // GENERATE TEXT → Main LLM call to Saptiva API
+  // Called by: route.ts (answer generation), chunk-filter.ts (filtering)
   async generateText(
     id: string,
     systemMessage: string,
@@ -73,12 +70,15 @@ export class SaptivaService {
         .replace(/Thought:.*(\n|$)/gi, "")
         .trim();
 
-      await collection.insertOne({
-        message_id: id,
-        message_role: "assistant",
-        message: sinRazonamiento,
-        timestamp: new Date(),
-      });
+      // Don't save internal LLM calls (chunk-filter) to messages
+      if (!id.startsWith('chunk-filter')) {
+        await collection.insertOne({
+          message_id: id,
+          message_role: "assistant",
+          message: sinRazonamiento,
+          timestamp: new Date(),
+        });
+      }
 
       return sinRazonamiento;
     } catch (error) {
@@ -96,12 +96,16 @@ export class SaptivaService {
       const payload = {
         model: MODEL_NAMES.OCR,
         messages: [
-          { role: "system", content: "Extrae todo el texto de la imagen" },
           {
             role: "user",
-            content: [{ type: "image_url", image_url: { url: dataUrl } }],
+            content: [
+              { type: "text", text: "OCR this image to markdown." },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
           },
         ],
+        max_tokens: 8000,
+        temperature: 0.1,
       };
 
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {

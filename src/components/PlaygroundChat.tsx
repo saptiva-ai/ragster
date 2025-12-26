@@ -48,12 +48,26 @@ export default function PlaygroundChat() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState<string>("");
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  if (token === "") {
-    setToken(uuidv4());
-  }
+  // Hydrate from localStorage after mount (avoids SSR mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem("ragster-chat");
+    if (saved) {
+      try {
+        const { messages: m, token: t } = JSON.parse(saved);
+        setMessages(m.map((msg: Message) => ({ ...msg, timestamp: new Date(msg.timestamp) })));
+        setToken(t);
+      } catch {
+        setToken(uuidv4());
+      }
+    } else {
+      setToken(uuidv4());
+    }
+    setIsHydrated(true);
+  }, []);
 
   // Obtener configuraciones del modelo
   const [modelSettings, setModelSettings] = useState<StoredSettings>({
@@ -140,6 +154,13 @@ export default function PlaygroundChat() {
     };
   }, []);
 
+  // Save chat to localStorage when messages/token change (only after hydration)
+  useEffect(() => {
+    if (isHydrated && token) {
+      localStorage.setItem("ragster-chat", JSON.stringify({ messages, token }));
+    }
+  }, [messages, token, isHydrated]);
+
   // Scroll al final de los mensajes cuando se añade uno nuevo
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
@@ -159,6 +180,21 @@ export default function PlaygroundChat() {
     // Add message to queue and clear input immediately
     const userInput = input.trim();
     setInput("");
+
+    // Secret: split by ;; to queue multiple messages at once
+    if (userInput.includes(';;')) {
+      const questions = userInput
+        .split(';;')
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      if (questions.length > 1) {
+        setMessageQueue((prev) => [...prev, ...questions]);
+        return;
+      }
+    }
+
+    // Normal single message
     setMessageQueue((prev) => [...prev, userInput]);
   };
 
@@ -297,6 +333,12 @@ export default function PlaygroundChat() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value || "");
+  };
+
+  const handleResetChat = () => {
+    setMessages([]);
+    setToken(uuidv4());
+    localStorage.removeItem("ragster-chat");
   };
 
   /*const handleNamespaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -506,7 +548,7 @@ export default function PlaygroundChat() {
             value={input || ""}
             onChange={handleInputChange}
             placeholder={`Haz una pregunta...`}
-            className="w-full p-4 pr-24 border border-gray-300 rounded-lg focus:ring-[#01f6d2] focus:border-[#01f6d2] bg-white text-black placeholder-gray-600"
+            className="w-full p-4 pr-32 border border-gray-300 rounded-lg focus:ring-[#01f6d2] focus:border-[#01f6d2] bg-white text-black placeholder-gray-600"
             disabled={false}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -515,26 +557,43 @@ export default function PlaygroundChat() {
               }
             }}
           />
-          {/* Queue indicator badge */}
-          {messageQueue.length > 0 && (
+          {/* Queue indicator badge - hidden */}
+          {/* {messageQueue.length > 0 && (
             <div className="absolute left-3 top-1/2 -translate-y-1/2 bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-medium">
               {messageQueue.length} en cola
             </div>
-          )}
-          <button
-            type="submit"
-            className="absolute right-2.5 bottom-2.5 px-4 py-2 text-black bg-[#01f6d2] hover:bg-teal-400 rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed"
-            disabled={!input.trim()}
-          >
-            {isLoading ? (
-              <div className="flex items-center">
-                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-1"></div>
-                <span>...</span>
-              </div>
-            ) : (
-              "Enviar"
-            )}
-          </button>
+          )} */}
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+            <button
+              type="submit"
+              className="px-4 py-2 text-black bg-[#01f6d2] hover:bg-teal-400 rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={!input.trim()}
+            >
+              {isLoading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-1"></div>
+                  <span>...</span>
+                </div>
+              ) : (
+                "Enviar"
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleResetChat}
+              className={`px-3 py-2 rounded-lg ${
+                messages.length > 0
+                  ? "bg-gray-300 hover:bg-[#01f6d2] hover:text-black text-gray-600"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+              disabled={messages.length === 0}
+              title="Reiniciar chat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
     </div>

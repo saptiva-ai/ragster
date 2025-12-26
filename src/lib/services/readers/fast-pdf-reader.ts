@@ -1,5 +1,6 @@
 import { DocumentReader } from '@/lib/core/interfaces';
 import { ExtractedDocument } from '@/lib/core/types';
+import { sanitizeExtractedText } from '@/lib/utils/normalize';
 
 /**
  * Fast PDF reader using mupdf for direct text extraction.
@@ -33,8 +34,11 @@ export class FastPdfReader implements DocumentReader {
       textParts.push(text);
     }
 
+    // Sanitize extracted text to remove problematic characters
+    const cleanContent = sanitizeExtractedText(textParts.join('\n\n'));
+
     return {
-      content: textParts.join('\n\n'),
+      content: cleanContent,
       metadata: {
         filename: file.name,
         fileType: file.type,

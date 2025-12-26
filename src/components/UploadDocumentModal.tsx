@@ -8,6 +8,7 @@ import {
   CheckCircleIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import TurnstileWidget from "./TurnstileWidget";
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
@@ -46,14 +47,29 @@ export default function UploadDocumentModal({
   const [jobError, setJobError] = useState<string | null>(null);
   const [ocrPage, setOcrPage] = useState<number | null>(null);
   const [ocrTotalPages, setOcrTotalPages] = useState<number | null>(null);
+  const [embeddingProgress, setEmbeddingProgress] = useState<number | null>(null);
+  const [embeddingTotal, setEmbeddingTotal] = useState<number | null>(null);
+  const [turnstileCleared, setTurnstileCleared] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Pre-flight GET to warm up CF (only in production)
+  useEffect(() => {
+    if (isOpen && process.env.NODE_ENV === 'production') {
+      fetch('/api/upload-weaviate', {
+        method: 'GET',
+        credentials: 'include'
+      }).catch(() => {}); // Ignore errors, just warming up
+    }
+  }, [isOpen]);
+
   // Poll job status when we have a jobId
   const pollJobStatus = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/queue-status/${id}`);
+      const res = await fetch(`/api/queue-status/${id}`, {
+        credentials: 'include', // CF cookie
+      });
       if (!res.ok) return null;
       const data = await res.json();
       return data;
@@ -73,6 +89,8 @@ export default function UploadDocumentModal({
       setStage(data.stage);
       setOcrPage(data.ocrPage || null);
       setOcrTotalPages(data.ocrTotalPages || null);
+      setEmbeddingProgress(data.embeddingProgress || null);
+      setEmbeddingTotal(data.embeddingTotal || null);
 
       if (data.status === 'completed') {
         clearInterval(interval);
@@ -107,6 +125,9 @@ export default function UploadDocumentModal({
         setJobError(null);
         setOcrPage(null);
         setOcrTotalPages(null);
+        setEmbeddingProgress(null);
+        setEmbeddingTotal(null);
+        setTurnstileCleared(false);
       }, 300);
     }
   }, [isOpen]);
@@ -138,6 +159,38 @@ export default function UploadDocumentModal({
     }
   };
 
+  // Upload with retry + CF challenge detection
+  const uploadWithRetry = async (formData: FormData, maxRetries = 3): Promise<Response | null> => {
+    for (let i = 0; i < maxRetries; i++) {
+      const response = await fetch("/api/upload-weaviate", {
+        method: "POST",
+        credentials: 'include', // CRITICAL: sends cf_clearance cookie
+        body: formData,
+      });
+
+      // Detect CF challenge (403 + HTML response)
+      if (response.status === 403) {
+        const text = await response.clone().text();
+        if (text.includes('Just a moment') || text.includes('cf-chl')) {
+          // CF challenge - redirect to solve it
+          window.location.href = '/?cf_challenge=1';
+          return null;
+        }
+      }
+
+      if (response.ok) return response;
+
+      if (response.status === 403 || response.status === 429) {
+        // Wait before retry (exponential backoff)
+        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+        continue;
+      }
+
+      return response; // Other errors, don't retry
+    }
+    return null;
+  };
+
   // Subir archivos
   const handleUpload = async () => {
     if (files.length === 0) return;
@@ -153,10 +206,16 @@ export default function UploadDocumentModal({
       files.forEach((file) => formData.append("files", file));
       formData.append("useOcr", useOcr.toString());
 
-      const response = await fetch("/api/upload-weaviate", {
-        method: "POST",
-        body: formData,
-      });
+      // Small delay to ensure cookies are ready
+      await new Promise(r => setTimeout(r, 100));
+
+      const response = await uploadWithRetry(formData);
+
+      if (!response) {
+        // CF challenge redirect happened or max retries
+        setIsUploading(false);
+        return;
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -249,6 +308,12 @@ export default function UploadDocumentModal({
                       Página {ocrPage}/{ocrTotalPages}
                     </span>
                   )}
+                  {/* Embedding progress */}
+                  {embeddingProgress && embeddingTotal && stage === 'embedding' && (
+                    <span className="text-sm text-gray-500">
+                      {embeddingProgress}/{embeddingTotal} chunks
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -294,12 +359,12 @@ export default function UploadDocumentModal({
                               // limpiar para permitir re-seleccionar el mismo archivo
                               (e.currentTarget as HTMLInputElement).value = "";
                             }}
-                            accept=".pdf,.docx,.txt,.md"
+                            accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"
                             disabled={isUploading}
                           />
                         </label>
                       </div>
-                      <p className="text-xs text-black">PDF, DOCX, TXT hasta 10MB</p>
+                      <p className="text-xs text-black">PDF, DOCX, TXT, PNG, JPG hasta 10MB</p>
                     </div>
                   </div>
                 </div>
@@ -343,6 +408,12 @@ export default function UploadDocumentModal({
           )}
         </div>
 
+        {/* Turnstile widget (invisible, solo en prod con Site Key) */}
+        <TurnstileWidget
+          onSuccess={() => setTurnstileCleared(true)}
+          onError={() => toast.error("Error de verificación. Recarga la página.")}
+        />
+
         {/* Pie del modal */}
         <div className="px-5 py-4 bg-gray-50 border-t rounded-b-lg flex justify-end">
           {uploadResult?.success ? (
@@ -367,9 +438,9 @@ export default function UploadDocumentModal({
                 type="button"
                 onClick={handleUpload}
                 className={`px-4 py-2 text-sm font-medium text-black rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#01f6d2] ${
-                  files.length === 0 || isUploading ? "bg-gray-300 cursor-not-allowed" : "bg-[#01f6d2] hover:bg-teal-400"
+                  files.length === 0 || isUploading || !turnstileCleared ? "bg-gray-300 cursor-not-allowed" : "bg-[#01f6d2] hover:bg-teal-400"
                 }`}
-                disabled={files.length === 0 || isUploading}
+                disabled={files.length === 0 || isUploading || !turnstileCleared}
               >
                 {isUploading ? "Subiendo..." : "Subir documento"}
               </button>

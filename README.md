@@ -67,6 +67,11 @@ MONGODB_URI=mongodb://mongo:27017/ragster
 # WEAVIATE_CLOUD=true
 # WEAVIATE_HOST=tu-cluster.weaviate.cloud
 # WEAVIATE_API_KEY=tu-api-key
+
+# API KEY (opcional - para integraciones externas)
+# Permite que apps externas accedan a la API con: Authorization: Bearer <key>
+# Generar con: node -e "console.log('sk-ragster-' + require('crypto').randomBytes(32).toString('hex'))"
+# RAGSTER_API_KEY=sk-ragster-tu-clave-secreta
 ```
 
 ### 3. Ejecuta

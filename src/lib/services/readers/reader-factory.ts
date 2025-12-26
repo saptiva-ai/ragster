@@ -26,6 +26,7 @@ class ReaderFactory {
     // Named readers for explicit selection
     this.namedReaders.set('FastPdfReader', new FastPdfReader());
     this.namedReaders.set('OcrPdfReader', new OcrPdfReader());
+    this.namedReaders.set('ImageReader', new ImageReader());
   }
 
   /**

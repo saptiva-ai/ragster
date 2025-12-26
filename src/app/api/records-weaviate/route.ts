@@ -30,8 +30,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Ensure collection exists and generate embedding
-    await weaviateClient.ensureCollectionExists();
+    // 3. Ensure both collections exist and generate embedding
+    await weaviateClient.ensureBothCollectionsExist();
 
     const embedder = getSaptivaEmbedder();
     const embeddingResult = await embedder.embed(text);
@@ -88,8 +88,8 @@ export async function GET() {
       );
     }
 
-    // 2. Fetch records from Weaviate (v2 API) - shared collection
-    const records = await weaviateClient.getAllObjects(10000);
+    // 2. Fetch records from Weaviate (v2 API) - BOTH collections (Documents + DocumentsQnA)
+    const records = await weaviateClient.getAllObjectsBoth(10000);
 
     return NextResponse.json({ success: true, records });
   } catch (error) {

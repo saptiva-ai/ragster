@@ -16,4 +16,5 @@ export interface ChunkOptions {
   chunkSize?: number;
   chunkOverlap?: number;
   separators?: string[];
+  filename?: string;  // Used for QnA detection (if contains "QNA", force QnA mode)
 }

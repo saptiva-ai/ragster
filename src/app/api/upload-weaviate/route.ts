@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { validateRequest } from "@/lib/api-auth";
 import { connectToDatabase } from "@/lib/mongodb/client";
 import { weaviateClient } from "@/lib/services/weaviate-client";
 import { uploadQueue } from "@/lib/services/queue";
@@ -15,12 +14,12 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1. Authentication (supports API key or session)
+    const auth = await validateRequest(req);
+    if (!auth.valid) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
-    const userId = session.user.id;
+    const userId = auth.userId!;
 
     // 2. Parse request
     const namespace = req.nextUrl.searchParams.get("namespace") || "default";
@@ -41,9 +40,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Ensure shared collection exists in Weaviate
-    const collectionName = await weaviateClient.ensureCollectionExists();
-    console.log(`[Upload] Collection ${collectionName} ready`);
+    // 3. Ensure both collections exist in Weaviate (Documents + DocumentsQnA)
+    const { regular, qna } = await weaviateClient.ensureBothCollectionsExist();
+    console.log(`[Upload] Collections ready: ${regular}, ${qna}`);
 
     // 4. Queue ALL files for background processing (provides progress tracking)
     const { db } = await connectToDatabase();
@@ -111,4 +110,17 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * GET /api/upload-weaviate
+ * Pre-flight endpoint for CF challenge warm-up.
+ * Returns 200 OK if authenticated, triggers CF challenge if needed.
+ */
+export async function GET(req: NextRequest) {
+  const auth = await validateRequest(req);
+  if (!auth.valid) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+  return NextResponse.json({ ok: true });
 }
