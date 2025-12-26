@@ -629,6 +629,39 @@ async function getAllObjects(
 }
 
 /**
+ * Get all objects from BOTH collections (Documents + DocumentsQnA).
+ * Same pattern as searchHybridBoth for consistency.
+ */
+async function getAllObjectsBoth(
+  limit: number = 10000
+): Promise<StoredObject[]> {
+  const client = getClient();
+
+  console.log(`[Weaviate] getAllObjectsBoth: Fetching from ${COLLECTION_NAME} and ${QNA_COLLECTION_NAME}`);
+
+  // Get from both collections in parallel - same pattern as searchHybridBoth
+  const [regularResults, qnaResults] = await Promise.all([
+    client.data.getter().withClassName(COLLECTION_NAME).withLimit(limit).do(),
+    client.data.getter().withClassName(QNA_COLLECTION_NAME).withLimit(limit).do(),
+  ]);
+
+  const regularObjects = (regularResults?.objects ?? []).map((obj) => ({
+    id: obj.id!,
+    properties: obj.properties as Record<string, unknown>,
+  }));
+
+  const qnaObjects = (qnaResults?.objects ?? []).map((obj) => ({
+    id: obj.id!,
+    properties: obj.properties as Record<string, unknown>,
+  }));
+
+  console.log(`[Weaviate] getAllObjectsBoth: Found ${regularObjects.length} regular + ${qnaObjects.length} QnA = ${regularObjects.length + qnaObjects.length} total`);
+
+  // Merge results - same pattern as searchHybridBoth
+  return [...regularObjects, ...qnaObjects];
+}
+
+/**
  * Update an object in the shared collection.
  */
 async function updateObject(
@@ -878,6 +911,7 @@ export const weaviateClient = {
   getChunksByIds,
   getChunksBySourceAndIndex,
   getAllObjects,
+  getAllObjectsBoth,
   updateObject,
   deleteObject,
   deleteByFilter,

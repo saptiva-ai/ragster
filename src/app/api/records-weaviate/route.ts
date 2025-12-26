@@ -88,8 +88,8 @@ export async function GET() {
       );
     }
 
-    // 2. Fetch records from Weaviate (v2 API) - shared collection
-    const records = await weaviateClient.getAllObjects(10000);
+    // 2. Fetch records from Weaviate (v2 API) - BOTH collections (Documents + DocumentsQnA)
+    const records = await weaviateClient.getAllObjectsBoth(10000);
 
     return NextResponse.json({ success: true, records });
   } catch (error) {
